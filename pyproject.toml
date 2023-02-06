@@ -1,0 +1,32 @@
+[project]
+name = "fetch-sitemap"
+version = "0.9"
+authors = [
+  { name="Martin Mahner", email="martin@elephant.house" },
+]
+description = "Fetch a given sitemap and retrieve all URLs in it."
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "aiohttp",
+    "rich",
+]
+
+[project.scripts]
+"fetch-sitemap" = "fetch_sitemap:main"
+
+[project.urls]
+"Homepage" = "https://github.com/bartTC/fetch-sitemap"
+"Bug Tracker" = "https://github.com/bartTC/fetch-sitemap/issues"
+
+[tool.black]
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"

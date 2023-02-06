@@ -1,5 +1,30 @@
 #!/usr/bin/env python
 
+"""
+usage: fetch-sitemap [-h] [--basic-auth BASIC_AUTH] [-l LIMIT] [-c CONCURRENCY_LIMIT] [-t REQUEST_TIMEOUT] [--report-path REPORT_PATH] sitemap_url
+
+Fetch a given sitemap and retrieve all URLs in it.
+
+positional arguments:
+  sitemap_url           URL of the sitemap to fetch
+
+options:
+  -h, --help            show this help message and exit
+  --basic-auth BASIC_AUTH
+                        Basic auth information. Use: 'username:password'.
+  -l LIMIT, --limit LIMIT
+                        Max number of URLs to fetch from the given sitemap.xml. Default: All
+  -c CONCURRENCY_LIMIT, --concurrency-limit CONCURRENCY_LIMIT
+                        Max number of concurrent requests. Default: 10
+  -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
+                        Timeout for fetching a URL. Default: 30
+  --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
+  --report-path REPORT_PATH
+                        Store results in a CSV file. Example: ./report.csv
+""" # noqa
+
+from __future__ import annotations
+
 import argparse
 import asyncio
 import csv
@@ -9,7 +34,6 @@ import re
 import sys
 import time
 from decimal import Decimal
-from pathlib import Path
 from random import randint
 from textwrap import dedent
 from typing import Iterable
@@ -168,9 +192,9 @@ class PageFetcher:
         """
         # Appennd a random integer to each URL to bypass frontend cache.
         if self.options.random:
-            hash = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1))
+            rand = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1))
             sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}{hash}"
+            url = f"{url}{sep}{rand}"
 
         start = time.time()
         try:
@@ -182,12 +206,12 @@ class PageFetcher:
                 self.console.print(r.info())
                 return r
         except TimeoutError:
-            r = Response(url=url, status=408, response_time=-1)
+            r = Response(url=url, status=408, response_time=Decimal(-1))
             self.console.print(r.info())
             return r
 
     def show_statistics_report(self):
-        text= Text(
+        text = Text(
             dedent(
                 f"""
                 Sitemap ........: {self.report.sitemap_url}
@@ -213,61 +237,3 @@ class PageFetcher:
             self.console.print(text)
             for r in slow_responses:
                 self.console.print(r.info())
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        prog="fetch-sitemap",
-        description="Fetch a given sitemap and retrieve all URLs in it.",
-    )
-    parser.add_argument("sitemap_url", help="URL of the sitemap to fetch")
-    parser.add_argument(
-        "--basic-auth",
-        type=str,
-        required=False,
-        help="Basic auth information. Use: 'username:password'.",
-    )
-    parser.add_argument(
-        "-l",
-        "--limit",
-        type=int,
-        required=False,
-        default=None,
-        help="Maximum number of URLs to fetch from the given sitemap.xml. Default: All",
-    )
-    parser.add_argument(
-        "-c",
-        "--concurrency-limit",
-        type=int,
-        required=False,
-        default=10,
-        help="Max number of concurrent requests. Default: 10",
-    )
-    parser.add_argument(
-        "-t",
-        "--request-timeout",
-        type=int,
-        required=False,
-        default=30,
-        help="Timeout for fetching a URL in seconds. Default: 30",
-    )
-    parser.add_argument(
-        "--random",
-        action="store_true",
-        default=False,
-        help="Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False",  # noqa
-    )
-    parser.add_argument(
-        "--report-path",
-        type=Path,
-        required=False,
-        default=None,
-        help="Store results in a CSV file. Example: ./report.csv",
-    )
-    args = parser.parse_args()
-
-    try:
-        f = PageFetcher(options=args)
-        asyncio.run(f.run())
-    except KeyboardInterrupt:
-        pass
