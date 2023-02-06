@@ -18,6 +18,6 @@ options:
                         Max number of concurrent requests. Default: 10
   -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
                         Timeout for fetching a URL. Default: 30
+  --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
   --report-path REPORT_PATH
-                        Store results in a CSV file. Default: results.csv
-```
+                        Store results in a CSV file. Example: ./report.csv```
