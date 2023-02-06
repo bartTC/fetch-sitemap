@@ -1,6 +1,13 @@
 # fetch-sitemap
 
-Fetch a given sitemap and retrieve all URLs in it.
+Retrieves all URL's of a given sitemap.xml URL and fetches each page one by one. 
+Useful for (load) testing the entire site for error responses.
+
+![](./example.png)
+
+*Note:* The default concurrency limit is 10, so 10 URLs are fetched at once. 
+Depending on your server's worker count, this might already be enough to DOS it.
+Try `--concurrency-limit=2` and scale up if necessary.
 
 ```
 usage: fetch-sitemap 

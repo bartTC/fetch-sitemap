@@ -1,12 +1,12 @@
 [project]
 name = "fetch-sitemap"
-version = "2"
+version = "3a"
 authors = [
   { name="Martin Mahner", email="martin@elephant.house" },
 ]
 description = "Fetch a given sitemap and retrieve all URLs in it."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
     "aiohttp",
     "rich",
+    "importlib-metadata",
 ]
 
 [project.scripts]
