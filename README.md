@@ -3,11 +3,11 @@
 Retrieves all URL's of a given sitemap.xml URL and fetches each page one by one. 
 Useful for (load) testing the entire site for error responses.
 
-![](./example.png)
+![Sample Output](https://raw.githubusercontent.com/bartTC/fetch-sitemap/main/example.png)
 
 *Note:* The default concurrency limit is 10, so 10 URLs are fetched at once. 
-Depending on your server's worker count, this might already be enough to DOS it.
-Try `--concurrency-limit=2` and scale up if necessary.
+Depending on your server's worker count, this might already be enough to DoS it.
+Try `--concurrency-limit=2` and increase if you feel comfortable.
 
 ```
 usage: fetch-sitemap 
