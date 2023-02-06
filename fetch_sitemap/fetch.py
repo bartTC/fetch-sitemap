@@ -1,28 +1,3 @@
-#!/usr/bin/env python
-
-"""
-usage: fetch-sitemap [-h] [--basic-auth BASIC_AUTH] [-l LIMIT] [-c CONCURRENCY_LIMIT] [-t REQUEST_TIMEOUT] [--report-path REPORT_PATH] sitemap_url
-
-Fetch a given sitemap and retrieve all URLs in it.
-
-positional arguments:
-  sitemap_url           URL of the sitemap to fetch
-
-options:
-  -h, --help            show this help message and exit
-  --basic-auth BASIC_AUTH
-                        Basic auth information. Use: 'username:password'.
-  -l LIMIT, --limit LIMIT
-                        Max number of URLs to fetch from the given sitemap.xml. Default: All
-  -c CONCURRENCY_LIMIT, --concurrency-limit CONCURRENCY_LIMIT
-                        Max number of concurrent requests. Default: 10
-  -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
-                        Timeout for fetching a URL. Default: 30
-  --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
-  --report-path REPORT_PATH
-                        Store results in a CSV file. Example: ./report.csv
-""" # noqa
-
 from __future__ import annotations
 
 import argparse
@@ -38,13 +13,9 @@ from random import randint
 from textwrap import dedent
 from typing import Iterable
 
-try:
-    from aiohttp import BasicAuth, ClientSession, ClientTimeout
-    from rich.console import Console
-    from rich.text import Text
-except (ImportError, ModuleNotFoundError):
-    sys.stderr.write("Some dependencies are missing. Run: pip install aiohttp rich")
-    sys.exit(1)
+from aiohttp import BasicAuth, ClientSession, ClientTimeout
+from rich.console import Console
+from rich.text import Text
 
 LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
 
@@ -230,6 +201,7 @@ class PageFetcher:
             self.console.print(text)
             for r in failed_responses:
                 self.console.print(r.info())
+            sys.stderr.write("\n")
 
         slow_responses = self.report.get_slow_responses()[:SLOW_NUM]
         if slow_responses:

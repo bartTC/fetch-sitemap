@@ -1,11 +1,12 @@
-__version__ = "1"
-__author__ = "Martin Mahner"
-
 import argparse
 import asyncio
+import importlib.metadata
 from pathlib import Path
 
 from .fetch import PageFetcher
+
+__version__ = importlib.metadata.version("fetch-sitemap")
+__author__ = "Martin Mahner"
 
 
 def main():
