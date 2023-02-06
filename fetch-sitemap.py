@@ -15,9 +15,9 @@ from textwrap import dedent
 from typing import Iterable
 
 try:
-    import aiohttp
-    from aiohttp import BasicAuth, ClientSession
-    from rich import print
+    from aiohttp import BasicAuth, ClientSession, ClientTimeout
+    from rich.console import Console
+    from rich.text import Text
 except (ImportError, ModuleNotFoundError):
     sys.stderr.write("Some dependencies are missing. Run: pip install aiohttp rich")
     sys.exit(1)
@@ -64,7 +64,7 @@ class Response:
 class Report:
     sitemap_url: str
     limit: int | None
-    concurrent_limit: int
+    concurrency_limit: int
     total_time: Decimal = Decimal(0)
     responses: list[Response] | None = None
 
@@ -86,14 +86,15 @@ async def gather_with_concurrency(n, *coroutines, **kwargs):
 
 
 class PageFetcher:
+    console: Console
     options: argparse.Namespace
-    timeout: aiohttp.ClientTimeout
+    timeout: ClientTimeout
     report: Report
     auth: BasicAuth | None
 
     def __init__(self, options: argparse.Namespace):
         self.options = options
-        self.timeout = aiohttp.ClientTimeout(options.request_timeout)
+        self.timeout = ClientTimeout(options.request_timeout)
 
         self.auth = None
         if options.basic_auth:
@@ -102,9 +103,39 @@ class PageFetcher:
 
         self.report = Report(
             sitemap_url=options.sitemap_url,
-            concurrent_limit=options.limit,
+            concurrency_limit=options.concurrency_limit,
             limit=options.limit,
         )
+
+    async def run(self) -> None:
+        """
+        Fetch the given sitemap, extract all URLs and then call each URL  individually.
+        """
+        self.console = Console()
+        sitemap_urls = await self.get_sitemap_urls()
+
+        if self.report.limit:
+            sitemap_urls = sitemap_urls[: self.report.limit]
+
+        start = time.time()
+        async with ClientSession(auth=self.auth, timeout=self.timeout) as session:
+            self.report.responses = await gather_with_concurrency(
+                self.options.concurrency_limit,
+                *[self.fetch(session, url) for url in sitemap_urls],
+                return_exceptions=True,
+            )
+
+        end = time.time()
+        self.report.total_time = Decimal(end - start)
+        self.show_statistics_report()
+
+        if self.options.report_path:
+            with open(self.options.report_path, "w", newline="") as csvfile:
+                w = csv.writer(
+                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
+                )
+                for r in self.report.responses:
+                    w.writerow(dataclasses.astuple(r))
 
     async def get_sitemap_urls(self) -> re.findall:
         """
@@ -137,7 +168,7 @@ class PageFetcher:
         """
         # Appennd a random integer to each URL to bypass frontend cache.
         if self.options.random:
-            hash = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1) - 1)
+            hash = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1))
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}{hash}"
 
@@ -148,66 +179,40 @@ class PageFetcher:
                 r = Response(
                     url=url, status=response.status, response_time=response_time
                 )
-                print(r.info())
+                self.console.print(r.info())
                 return r
         except TimeoutError:
             r = Response(url=url, status=408, response_time=-1)
-            print(r.info())
+            self.console.print(r.info())
             return r
 
     def show_statistics_report(self):
-        print(
+        text= Text(
             dedent(
                 f"""
                 Sitemap ........: {self.report.sitemap_url}
-                Limit ..........: {self.report.limit}
-                Concurrent Limit: {self.report.concurrent_limit}
+                Limit ..........: {self.report.limit or "No limit"}
+                Concurrent Limit: {self.report.concurrency_limit}
                 Total Time .....: {self.report.total_time:.2f}s
                 URLs fetched ...: {len(self.report.responses)}
                 """
             )
         )
+        self.console.print(text)
 
         failed_responses = list(self.report.get_failed_responses())
         if len(failed_responses) > 0:
-            print("❌ Failed Responses:\n")
+            text = Text("❌ Failed Responses:\n", style="bold")
+            self.console.print(text)
             for r in failed_responses:
-                print(r.info())
+                self.console.print(r.info())
 
         slow_responses = self.report.get_slow_responses()[:SLOW_NUM]
         if slow_responses:
-            print(f"\n🐢 Top {SLOW_NUM} Slow Responses:\n")
+            text = Text(f"🐢 Top {SLOW_NUM} Slow Responses:\n", style="bold")
+            self.console.print(text)
             for r in slow_responses:
-                print(r.info())
-
-    async def run(self) -> None:
-        """
-        Fetch the given sitemap, extract all URLs and then call each URL  individually.
-        """
-        sitemap_urls = await self.get_sitemap_urls()
-
-        if self.report.limit:
-            sitemap_urls = sitemap_urls[: self.report.limit]
-
-        start = time.time()
-        async with ClientSession(auth=self.auth, timeout=self.timeout) as session:
-            self.report.responses = await gather_with_concurrency(
-                self.options.concurrency_limit,
-                *[self.fetch(session, url) for url in sitemap_urls],
-                return_exceptions=True,
-            )
-
-        end = time.time()
-        self.report.total_time = Decimal(end - start)
-        self.show_statistics_report()
-
-        if self.options.report_path:
-            with open(self.options.report_path, "w", newline="") as csvfile:
-                w = csv.writer(
-                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
-                )
-                for r in self.report.responses:
-                    w.writerow(dataclasses.astuple(r))
+                self.console.print(r.info())
 
 
 if __name__ == "__main__":
@@ -228,7 +233,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=None,
-        help="Max number of URLs to fetch from the given sitemap.xml. Default: All",
+        help="Maximum number of URLs to fetch from the given sitemap.xml. Default: All",
     )
     parser.add_argument(
         "-c",
@@ -244,7 +249,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=30,
-        help="Timeout for fetching a URL. Default: 30",
+        help="Timeout for fetching a URL in seconds. Default: 30",
     )
     parser.add_argument(
         "--random",
