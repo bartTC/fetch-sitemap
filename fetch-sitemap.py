@@ -10,13 +10,14 @@ import sys
 import time
 from decimal import Decimal
 from pathlib import Path
+from random import randint
 from textwrap import dedent
 from typing import Iterable
 
 try:
     import aiohttp
     from aiohttp import BasicAuth, ClientSession
-    from rich import json, print
+    from rich import print
 except (ImportError, ModuleNotFoundError):
     sys.stderr.write("Some dependencies are missing. Run: pip install aiohttp rich")
     sys.exit(1)
@@ -28,6 +29,9 @@ SLOW_THRESHOLD = int(os.getenv("SLOW_THRESHOLD", 5))
 
 # How many 'slow' responses to show
 SLOW_NUM = int(os.getenv("SLOW_NUM", 10))
+
+# How long should the --random hash be?
+RANDOM_LENGTH = int(os.getenv("RANDOM_LENGTH", 15))
 
 
 @dataclasses.dataclass
@@ -111,14 +115,15 @@ class PageFetcher:
                 content = await response.content.read()
                 if response.status == 401:
                     sys.stderr.write(
-                        f"❌ Unable to fetch sitemap.xml file. Authorization error.\n\n"
+                        "❌ Unable to fetch sitemap.xml file. Authorization error.\n\n"
                     )
                     sys.stderr.write(content.decode("utf-8"))
                     sys.exit(1)
 
                 elif response.status >= 300:
                     sys.stderr.write(
-                        f"❌ Unable to fetch sitemap.xml file. Error: {response.status}\n\n"
+                        f"❌ Unable to fetch sitemap.xml file. "
+                        f"Error: {response.status}\n\n"
                     )
                     sys.stderr.write(content.decode("utf-8"))
                     sys.exit(1)
@@ -130,6 +135,12 @@ class PageFetcher:
         """
         Fetch the given URL concurrently.
         """
+        # Appennd a random integer to each URL to bypass frontend cache.
+        if self.options.random:
+            hash = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1) - 1)
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}{hash}"
+
         start = time.time()
         try:
             async with session.get(url) as response:
@@ -190,12 +201,13 @@ class PageFetcher:
         self.report.total_time = Decimal(end - start)
         self.show_statistics_report()
 
-        with open(self.options.report_path, "w", newline="") as csvfile:
-            w = csv.writer(
-                csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
-            )
-            for r in self.report.responses:
-                w.writerow(dataclasses.astuple(r))
+        if self.options.report_path:
+            with open(self.options.report_path, "w", newline="") as csvfile:
+                w = csv.writer(
+                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
+                )
+                for r in self.report.responses:
+                    w.writerow(dataclasses.astuple(r))
 
 
 if __name__ == "__main__":
@@ -235,11 +247,17 @@ if __name__ == "__main__":
         help="Timeout for fetching a URL. Default: 30",
     )
     parser.add_argument(
+        "--random",
+        action="store_true",
+        default=False,
+        help="Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False",  # noqa
+    )
+    parser.add_argument(
         "--report-path",
         type=Path,
         required=False,
-        default="results.csv",
-        help="Store results in a CSV file. Default: results.csv",
+        default=None,
+        help="Store results in a CSV file. Example: ./report.csv",
     )
     args = parser.parse_args()
 
