@@ -1,7 +1,16 @@
 # fetch-sitemap
 
+Fetch a given sitemap and retrieve all URLs in it.
+
 ```
-usage: fetch-sitemap [-h] [--basic-auth BASIC_AUTH] [-l LIMIT] [-c CONCURRENCY_LIMIT] [-t REQUEST_TIMEOUT] [--report-path REPORT_PATH] sitemap_url
+usage: fetch-sitemap 
+    [-h] 
+    [--basic-auth BASIC_AUTH] 
+    [-l LIMIT] 
+    [-c CONCURRENCY_LIMIT] 
+    [-t REQUEST_TIMEOUT] 
+    [--report-path REPORT_PATH] 
+    sitemap_url
 
 Fetch a given sitemap and retrieve all URLs in it.
 
@@ -20,4 +29,5 @@ options:
                         Timeout for fetching a URL. Default: 30
   --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
   --report-path REPORT_PATH
-                        Store results in a CSV file. Example: ./report.csv```
+                        Store results in a CSV file. Example: ./report.csv
+```
