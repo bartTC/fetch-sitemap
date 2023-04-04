@@ -29,12 +29,14 @@ options:
   --basic-auth BASIC_AUTH
                         Basic auth information. Use: 'username:password'.
   -l LIMIT, --limit LIMIT
-                        Max number of URLs to fetch from the given sitemap.xml. Default: All
+                        Maximum number of URLs to fetch from the given sitemap.xml. Default: All
   -c CONCURRENCY_LIMIT, --concurrency-limit CONCURRENCY_LIMIT
                         Max number of concurrent requests. Default: 10
   -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
-                        Timeout for fetching a URL. Default: 30
+                        Timeout for fetching a URL in seconds. Default: 30
   --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
   --report-path REPORT_PATH
                         Store results in a CSV file. Example: ./report.csv
+  -o OUTPUT, --output-dir OUTPUT
+                        Store all fetched sitemap documents in this folder.
 ```

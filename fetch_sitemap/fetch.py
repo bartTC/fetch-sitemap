@@ -8,12 +8,14 @@ import os
 import re
 import sys
 import time
+import pathlib
 from decimal import Decimal
 from random import randint
 from textwrap import dedent
 from typing import Iterable
 
-from aiohttp import BasicAuth, ClientSession, ClientTimeout
+import aiofiles
+from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
 from rich.console import Console
 from rich.text import Text
 
@@ -86,6 +88,7 @@ class PageFetcher:
     timeout: ClientTimeout
     report: Report
     auth: BasicAuth | None
+    output_dir: pathlib.Path
 
     def __init__(self, options: argparse.Namespace):
         self.options = options
@@ -117,7 +120,7 @@ class PageFetcher:
             self.report.responses = await gather_with_concurrency(
                 self.options.concurrency_limit,
                 *[self.fetch(session, url) for url in sitemap_urls],
-                return_exceptions=True,
+                return_exceptions=False,
             )
 
         end = time.time()
@@ -157,7 +160,7 @@ class PageFetcher:
                 sitemap_links = LOG_ITEMS.findall(content.decode("utf-8"))
                 return sitemap_links
 
-    async def fetch(self, session: ClientSession, url: str) -> Response:
+    async def fetch(self, session: ClientSession, url: str) -> Response | None:
         """
         Fetch the given URL concurrently.
         """
@@ -167,19 +170,35 @@ class PageFetcher:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}{rand}"
 
+        response: ClientResponse | None
         start = time.time()
         try:
             async with session.get(url) as response:
                 response_time = Decimal(time.time() - start)
+                content = await response.text()
                 r = Response(
-                    url=url, status=response.status, response_time=response_time
+                    url=url,
+                    status=response.status,
+                    response_time=response_time,
                 )
-                self.console.print(r.info())
-                return r
         except TimeoutError:
+            response = None
             r = Response(url=url, status=408, response_time=Decimal(-1))
-            self.console.print(r.info())
-            return r
+
+        # Store the content of each Sitemap document in a local file
+        if self.options.output and response:
+            if response.url.path in ["/", ""]:
+                path = "index"
+            else:
+                path = response.url.path.lstrip('/').rstrip('/')
+
+            outfile = (self.options.output / f"{path}.html").absolute()
+            outfile.parent.mkdir(parents=True, exist_ok=True)
+            with open(outfile, 'w') as f:
+                f.write(content)
+
+        self.console.print(r.info())
+        return r
 
     def show_statistics_report(self):
         text = Text(

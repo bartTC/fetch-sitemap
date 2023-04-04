@@ -14,8 +14,8 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp",
-    "rich",
     "importlib-metadata",
+    "rich",
 ]
 
 [project.scripts]

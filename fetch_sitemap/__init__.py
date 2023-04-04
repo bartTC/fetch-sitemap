@@ -62,6 +62,14 @@ def main():
         default=None,
         help="Store results in a CSV file. Example: ./report.csv",
     )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        dest="output",
+        type=Path,
+        required=False,
+        help="Store all fetched sitemap documents in this folder.",
+    )
     args = parser.parse_args()
 
     try:
