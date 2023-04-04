@@ -14,7 +14,6 @@ from random import randint
 from textwrap import dedent
 from typing import Iterable
 
-import aiofiles
 from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
 from rich.console import Console
 from rich.text import Text
