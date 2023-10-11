@@ -13,7 +13,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "aiohttp",
+    "aiohttp==3.9.0b0",
     "importlib-metadata",
     "rich",
 ]
