@@ -6,14 +6,14 @@ from .fetch import PageFetcher
 
 try:
     from importlib import metadata
-except ImportError: # for Python<3.8
+except ImportError:  # for Python<3.8
     import importlib_metadata as metadata
 
 __version__ = metadata.version("fetch-sitemap")
 __author__ = "Martin Mahner"
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog="fetch-sitemap",
         description="Fetch a given sitemap and retrieve all URLs in it.",
@@ -53,7 +53,10 @@ def main():
         "--random",
         action="store_true",
         default=False,
-        help="Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False",  # noqa
+        help=(
+            "Append a random string like ?12334232343 to each URL to bypass frontend "
+            "cache. Default: False"
+        ),
     )
     parser.add_argument(
         "--report-path",

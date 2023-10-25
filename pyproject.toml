@@ -26,8 +26,28 @@ dependencies = [
 "Bug Tracker" = "https://github.com/bartTC/fetch-sitemap/issues"
 
 [tool.black]
-target-version = ['py311']
+target-version = ['py312']
 include = '\.pyi?$'
+exclude = "migrations"
 
-[tool.isort]
-profile = "black"
+[tool.ruff]
+target-version = "py38"
+exclude = ["migrations"]
+select = ["ALL"]
+ignore = [
+  "ANN101",   # Missing Type Annotation for "self"
+  "ANN401",   # Dynamically typed expressions (typing.Any) are disallowed in `**kwargs`"
+  "D",        # Missing or badly formatted docstrings
+  "FBT",      # Flake Boolean Trap (don't use arg=True in functions)
+  "S101",     # Use of `assert` detected
+]
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_errors = false
+ignore_missing_imports = true
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+exclude = ".*/migrations/.*"

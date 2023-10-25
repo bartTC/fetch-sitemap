@@ -1,33 +1,36 @@
 from __future__ import annotations
 
-import argparse
 import asyncio
 import csv
 import dataclasses
 import os
+import pathlib
 import re
 import sys
 import time
-import pathlib
 from decimal import Decimal
+from http import HTTPStatus
 from random import randint
 from textwrap import dedent
-from typing import Iterable
+from typing import TYPE_CHECKING, Any, Awaitable, Iterable
 
 from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
 from rich.console import Console
 from rich.text import Text
 
+if TYPE_CHECKING:
+    import argparse
+
 LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
 
 # Defines what a 'slow' response time is
-SLOW_THRESHOLD = int(os.getenv("SLOW_THRESHOLD", 5))
+SLOW_THRESHOLD = int(os.getenv("SLOW_THRESHOLD", "5"))
 
 # How many 'slow' responses to show
-SLOW_NUM = int(os.getenv("SLOW_NUM", 10))
+SLOW_NUM = int(os.getenv("SLOW_NUM", "10"))
 
 # How long should the --random hash be?
-RANDOM_LENGTH = int(os.getenv("RANDOM_LENGTH", 15))
+RANDOM_LENGTH = int(os.getenv("RANDOM_LENGTH", "15"))
 
 
 @dataclasses.dataclass
@@ -37,8 +40,8 @@ class Response:
     response_time: Decimal
 
     @property
-    def is_error(self):
-        return self.status >= 400
+    def is_error(self) -> bool:
+        return self.status >= HTTPStatus.BAD_REQUEST
 
     def info(self) -> str:
         if self.is_error:
@@ -46,7 +49,7 @@ class Response:
         else:
             status = f"[bold green]{self.status}[/bold green]"
 
-        if self.status == 408:
+        if self.status == HTTPStatus.REQUEST_TIMEOUT:
             response_time = "[bold magenta]Timeout[/bold magenta]"
         elif self.response_time > SLOW_THRESHOLD:
             response_time = f"[bold red]{self.response_time:.3f}s[/bold red]"
@@ -71,10 +74,14 @@ class Report:
         return filter(lambda r: isinstance(r, Exception) or r.is_error, self.responses)
 
 
-async def gather_with_concurrency(n, *coroutines, **kwargs):
+async def gather_with_concurrency(
+    n: int,
+    *coroutines: Awaitable,
+    **kwargs: Any,
+) -> tuple[Any]:
     semaphore = asyncio.Semaphore(n)
 
-    async def sem_coro(coro):
+    async def sem_coro(coro: Awaitable) -> Awaitable:
         async with semaphore:
             return await coro
 
@@ -89,7 +96,7 @@ class PageFetcher:
     auth: BasicAuth | None
     output_dir: pathlib.Path
 
-    def __init__(self, options: argparse.Namespace):
+    def __init__(self, options: argparse.Namespace) -> None:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
 
@@ -127,9 +134,15 @@ class PageFetcher:
         self.show_statistics_report()
 
         if self.options.report_path:
-            with open(self.options.report_path, "w", newline="") as csvfile:
+            with pathlib.Path(self.options.report_path).open(
+                "w",
+                newline="",
+            ) as csvfile:
                 w = csv.writer(
-                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
+                    csvfile,
+                    delimiter=",",
+                    quotechar='"',
+                    quoting=csv.QUOTE_MINIMAL,
                 )
                 for r in self.report.responses:
                     w.writerow(dataclasses.astuple(r))
@@ -138,34 +151,38 @@ class PageFetcher:
         """
         Get the main sitemap.xml file and extract all location url's of it.
         """
-        async with ClientSession(auth=self.auth, timeout=self.timeout) as session:
-            async with session.get(self.options.sitemap_url) as response:
-                content = await response.content.read()
-                if response.status == 401:
-                    sys.stderr.write(
-                        "❌ Unable to fetch sitemap.xml file. Authorization error.\n\n"
-                    )
-                    sys.stderr.write(content.decode("utf-8"))
-                    sys.exit(1)
+        async with (
+            ClientSession(auth=self.auth, timeout=self.timeout) as session,
+            session.get(self.options.sitemap_url) as response,
+        ):
+            content = await response.content.read()
+            if response.status == HTTPStatus.UNAUTHORIZED:
+                sys.stderr.write(
+                    "❌ Unable to fetch sitemap.xml file. Authorization error.\n\n",
+                )
+                sys.stderr.write(content.decode("utf-8"))
+                sys.exit(1)
 
-                elif response.status >= 300:
-                    sys.stderr.write(
-                        f"❌ Unable to fetch sitemap.xml file. "
-                        f"Error: {response.status}\n\n"
-                    )
-                    sys.stderr.write(content.decode("utf-8"))
-                    sys.exit(1)
+            elif response.status >= HTTPStatus.MULTIPLE_CHOICES:
+                sys.stderr.write(
+                    f"❌ Unable to fetch sitemap.xml file. "
+                    f"Error: {response.status}\n\n",
+                )
+                sys.stderr.write(content.decode("utf-8"))
+                sys.exit(1)
 
-                sitemap_links = LOG_ITEMS.findall(content.decode("utf-8"))
-                return sitemap_links
+            return LOG_ITEMS.findall(content.decode("utf-8"))
 
     async def fetch(self, session: ClientSession, url: str) -> Response | None:
         """
         Fetch the given URL concurrently.
         """
-        # Appennd a random integer to each URL to bypass frontend cache.
+        # Append a random integer to each URL to bypass frontend cache.
         if self.options.random:
-            rand = randint(pow(10, RANDOM_LENGTH), pow(10, RANDOM_LENGTH + 1))
+            rand = randint(  # noqa: S311
+                pow(10, RANDOM_LENGTH),
+                pow(10, RANDOM_LENGTH + 1),
+            )
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}{rand}"
 
@@ -189,17 +206,17 @@ class PageFetcher:
             if response.url.path in ["/", ""]:
                 path = "index"
             else:
-                path = response.url.path.lstrip('/').rstrip('/')
+                path = response.url.path.lstrip("/").rstrip("/")
 
             outfile = (self.options.output / f"{path}.html").absolute()
             outfile.parent.mkdir(parents=True, exist_ok=True)
-            with open(outfile, 'w') as f:
+            with pathlib.Path(outfile).open("w") as f:
                 f.write(content)
 
         self.console.print(r.info())
         return r
 
-    def show_statistics_report(self):
+    def show_statistics_report(self) -> None:
         text = Text(
             dedent(
                 f"""
@@ -208,8 +225,8 @@ class PageFetcher:
                 Concurrent Limit: {self.report.concurrency_limit}
                 Total Time .....: {self.report.total_time:.2f}s
                 URLs fetched ...: {len(self.report.responses)}
-                """
-            )
+                """,
+            ),
         )
         self.console.print(text)
 
