@@ -134,7 +134,7 @@ class PageFetcher:
         self.show_statistics_report()
 
         if self.options.report_path:
-            with pathlib.Path(self.options.report_path).open(
+            with pathlib.Path(self.options.report_path).expanduser().open(
                 "w",
                 newline="",
             ) as csvfile:
@@ -208,7 +208,7 @@ class PageFetcher:
             else:
                 path = response.url.path.lstrip("/").rstrip("/")
 
-            outfile = (self.options.output / f"{path}.html").absolute()
+            outfile = (self.options.output / f"{path}.html").expanduser().absolute()
             outfile.parent.mkdir(parents=True, exist_ok=True)
             with pathlib.Path(outfile).open("w") as f:
                 f.write(content)
