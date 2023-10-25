@@ -1,6 +1,6 @@
 [project]
 name = "fetch-sitemap"
-version = "5a0"
+version = "5"
 authors = [
   { name="Martin Mahner", email="martin@elephant.house" },
 ]
