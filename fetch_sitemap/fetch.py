@@ -144,6 +144,7 @@ class PageFetcher:
                     quotechar='"',
                     quoting=csv.QUOTE_MINIMAL,
                 )
+                w.writerow(["url", "status", "response time"])
                 for r in self.report.responses:
                     w.writerow(dataclasses.astuple(r))
 
