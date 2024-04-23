@@ -1,21 +1,24 @@
-[project]
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
 name = "fetch-sitemap"
 version = "8"
-authors = [
-  { name="Martin Mahner", email="martin@elephant.house" },
-]
 description = "Fetch a given sitemap and retrieve all URLs in it."
+authors = ["Martin Mahner <martin@mahner.org>"]
+license = "MIT"
 readme = "README.md"
-requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = [
-    "aiohttp>=3.9.0",
-    "rich",
-]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+aiohttp = ">=3.9.0"
+rich = ">=12"
 
 [project.scripts]
 "fetch-sitemap" = "fetch_sitemap:main"
