@@ -39,4 +39,5 @@ options:
                         Store results in a CSV file. Example: ./report.csv
   -o OUTPUT, --output-dir OUTPUT
                         Store all fetched sitemap documents in this folder.
+  -v, --version         show program's version number and exit
 ```

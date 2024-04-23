@@ -73,6 +73,12 @@ def main() -> None:
         required=False,
         help="Store all fetched sitemap documents in this folder.",
     )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"%(prog)s v{__version__}",
+    )
     args = parser.parse_args()
 
     try:
