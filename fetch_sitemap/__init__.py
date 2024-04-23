@@ -38,8 +38,8 @@ def main() -> None:
         "--concurrency-limit",
         type=int,
         required=False,
-        default=10,
-        help="Max number of concurrent requests. Default: 10",
+        default=5,
+        help="Max number of concurrent requests. Default: 5",
     )
     parser.add_argument(
         "-t",

@@ -31,7 +31,7 @@ options:
   -l LIMIT, --limit LIMIT
                         Maximum number of URLs to fetch from the given sitemap.xml. Default: All
   -c CONCURRENCY_LIMIT, --concurrency-limit CONCURRENCY_LIMIT
-                        Max number of concurrent requests. Default: 10
+                        Max number of concurrent requests. Default: 5
   -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
                         Timeout for fetching a URL in seconds. Default: 30
   --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
