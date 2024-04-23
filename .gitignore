@@ -4,3 +4,4 @@ dist/
 *.pyc
 
 .python-version
+.tool-versions

@@ -12,7 +12,7 @@ from decimal import Decimal
 from http import HTTPStatus
 from random import randint
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Awaitable, Iterable
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
 from rich.console import Console
@@ -20,6 +20,7 @@ from rich.text import Text
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Awaitable, Iterable
 
 LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
 
@@ -134,10 +135,14 @@ class PageFetcher:
         self.show_statistics_report()
 
         if self.options.report_path:
-            with pathlib.Path(self.options.report_path).expanduser().open(
-                "w",
-                newline="",
-            ) as csvfile:
+            with (
+                pathlib.Path(self.options.report_path)
+                .expanduser()
+                .open(
+                    "w",
+                    newline="",
+                ) as csvfile
+            ):
                 w = csv.writer(
                     csvfile,
                     delimiter=",",
@@ -211,7 +216,7 @@ class PageFetcher:
 
             outfile = (self.options.output / f"{path}.html").expanduser().absolute()
             outfile.parent.mkdir(parents=True, exist_ok=True)
-            with pathlib.Path(outfile).open("w") as f:
+            with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
                 f.write(content)
 
         self.console.print(r.info())

@@ -5,7 +5,7 @@ Useful for (load) testing the entire site for error responses.
 
 ![Sample Output](https://raw.githubusercontent.com/bartTC/fetch-sitemap/main/example.png)
 
-*Note:* The default concurrency limit is 10, so 10 URLs are fetched at once. 
+*Note:* The default concurrency limit is 5, so 5 URLs are fetched at once. 
 Depending on your server's worker count, this might already be enough to DoS it.
 Try `--concurrency-limit=2` and increase if you feel comfortable.
 
