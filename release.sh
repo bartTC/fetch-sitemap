@@ -3,7 +3,7 @@ set -o errexit
 set -o pipefail
 
 # Run tests before release
-./test.sh
+./tests.sh
 
 poetry version major
 git add pyproject.toml && git commit -am "Bump up version number to v$(poetry version -s)}"
