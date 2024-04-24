@@ -10,4 +10,4 @@ git add pyproject.toml && git commit -am "Bump up version number to v$(poetry ve
 git tag "v$(poetry version -s)"
 git push --tags
 poetry build
-peotry publish
+poetry publish
