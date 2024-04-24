@@ -2,7 +2,6 @@ import argparse
 import asyncio
 from importlib import metadata
 from pathlib import Path
-from typing import Any
 
 from rich_argparse import ArgumentDefaultsRichHelpFormatter
 

@@ -10,34 +10,41 @@ Depending on your server's worker count, this might already be enough to DoS it.
 Try `--concurrency-limit=2` and increase if you feel comfortable.
 
 ```
-usage: fetch-sitemap 
-    [-h] 
-    [--basic-auth BASIC_AUTH] 
-    [-l LIMIT] 
-    [-c CONCURRENCY_LIMIT] 
-    [-t REQUEST_TIMEOUT] 
-    [--report-path REPORT_PATH] 
-    sitemap_url
+Usage: fetch-sitemap [-h] [--basic-auth BASIC_AUTH] [-l LIMIT] [-c CONCURRENCY_LIMIT]
+                     [-t REQUEST_TIMEOUT] [--random] [--report-path REPORT_PATH]
+                     [-o OUTPUT] [-v]
+                     sitemap_url
 
 Fetch a given sitemap and retrieve all URLs in it.
 
-positional arguments:
+Positional Arguments:
   sitemap_url           URL of the sitemap to fetch
 
-options:
+Options:
   -h, --help            show this help message and exit
   --basic-auth BASIC_AUTH
-                        Basic auth information. Use: 'username:password'.
-  -l LIMIT, --limit LIMIT
-                        Maximum number of URLs to fetch from the given sitemap.xml. Default: All
-  -c CONCURRENCY_LIMIT, --concurrency-limit CONCURRENCY_LIMIT
-                        Max number of concurrent requests. Default: 5
-  -t REQUEST_TIMEOUT, --request-timeout REQUEST_TIMEOUT
-                        Timeout for fetching a URL in seconds. Default: 30
-  --random              Append a random string like ?12334232343 to each URL to bypass frontend cache. Default: False
+                        Basic auth information. Use: 'username:password' (default: None)
+  -l, --limit LIMIT     Maximum number of URLs to fetch from the given sitemap.xml
+                        (default: None)
+  -c, --concurrency-limit CONCURRENCY_LIMIT
+                        Max number of concurrent requests (default: 5)
+  -t, --request-timeout REQUEST_TIMEOUT
+                        Timeout for fetching a URL in seconds (default: 30)
+  --random              Append a random string like ?12334232343 to each URL to bypass
+                        frontend cache (default: False)
   --report-path REPORT_PATH
-                        Store results in a CSV file. Example: ./report.csv
-  -o OUTPUT, --output-dir OUTPUT
-                        Store all fetched sitemap documents in this folder.
-  -v, --version         show program's version number and exit
+                        Store results in a CSV file (example: ./report.csv) (default:
+                        None)
+  -o, --output-dir OUTPUT
+                        Store all fetched sitemap documents in this folder (default: None)
+  -v, --version         Show program's version number and exit```
+```
+
+
+## 🤺 Local Development
+
+```bash
+poetry install
+poetry run fetch-sitemap -h
+poetry run ./tests.sh
 ```
