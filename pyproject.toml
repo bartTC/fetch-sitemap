@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "fetch-sitemap"
-version = "9"
+version = "10"
 description = "Fetch a given sitemap and retrieve all URLs in it."
 authors = ["Martin Mahner <martin@mahner.org>"]
 license = "MIT"
@@ -21,10 +21,7 @@ aiohttp = ">=3.9.0"
 rich = ">=12"
 
 [tool.poetry.scripts]
-fetch_sitemap = "fetch_sitemap:main"
-
-[project.scripts]
-"fetch-sitemap" = "fetch_sitemap:main"
+fetch-sitemap = "fetch_sitemap:main"
 
 [project.urls]
 "Homepage" = "https://github.com/bartTC/fetch-sitemap"
