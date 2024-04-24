@@ -19,7 +19,7 @@ classifiers = [
 python = "^3.9"
 aiohttp = ">=3.9.0"
 rich = ">=12"
-rich-argparse = "^1.4.0"
+rich-click = "^1.7.4"
 
 [tool.poetry.scripts]
 fetch-sitemap = "fetch_sitemap:main"

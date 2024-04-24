@@ -19,8 +19,9 @@ from rich.console import Console
 from rich.text import Text
 
 if TYPE_CHECKING:
-    import argparse
     from collections.abc import Awaitable, Iterable
+
+    from fetch_sitemap import Options
 
 LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
 
@@ -91,13 +92,13 @@ async def gather_with_concurrency(
 
 class PageFetcher:
     console: Console
-    options: argparse.Namespace
+    options: Options
     timeout: ClientTimeout
     report: Report
     auth: BasicAuth | None
     output_dir: pathlib.Path
 
-    def __init__(self, options: argparse.Namespace) -> None:
+    def __init__(self, options: Options) -> None:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
 
@@ -208,13 +209,19 @@ class PageFetcher:
             r = Response(url=url, status=408, response_time=Decimal(-1))
 
         # Store the content of each Sitemap document in a local file
-        if self.options.output and response:
+        if (
+            response
+            and self.options.output_dir
+            and (
+                outdir := pathlib.Path(self.options.output_dir).expanduser().absolute()
+            )
+        ):
             if response.url.path in ["/", ""]:
                 path = "index"
             else:
                 path = response.url.path.lstrip("/").rstrip("/")
 
-            outfile = (self.options.output / f"{path}.html").expanduser().absolute()
+            outfile = outdir / f"{path}.html"
             outfile.parent.mkdir(parents=True, exist_ok=True)
             with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
                 f.write(content)
