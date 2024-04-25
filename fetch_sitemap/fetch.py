@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import csv
 import dataclasses
-import os
 import pathlib
 import re
 import sys
@@ -25,15 +24,6 @@ if TYPE_CHECKING:
 
 LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
 
-# Defines what a 'slow' response time is
-SLOW_THRESHOLD = int(os.getenv("SLOW_THRESHOLD", "5"))
-
-# How many 'slow' responses to show
-SLOW_NUM = int(os.getenv("SLOW_NUM", "10"))
-
-# How long should the --random hash be?
-RANDOM_LENGTH = int(os.getenv("RANDOM_LENGTH", "15"))
-
 
 @dataclasses.dataclass
 class Response:
@@ -45,7 +35,7 @@ class Response:
     def is_error(self) -> bool:
         return self.status >= HTTPStatus.BAD_REQUEST
 
-    def info(self) -> str:
+    def info(self, options: Options) -> str:
         if self.is_error:
             status = f"[bold red]{self.status}[/bold red]"
         else:
@@ -53,7 +43,7 @@ class Response:
 
         if self.status == HTTPStatus.REQUEST_TIMEOUT:
             response_time = "[bold magenta]Timeout[/bold magenta]"
-        elif self.response_time > SLOW_THRESHOLD:
+        elif self.response_time > options.slow_threshold:
             response_time = f"[bold red]{self.response_time:.3f}s[/bold red]"
         else:
             response_time = f"[bold green]{self.response_time:.3f}s[/bold green]"
@@ -187,8 +177,8 @@ class PageFetcher:
         # Append a random integer to each URL to bypass frontend cache.
         if self.options.random:
             rand = randint(  # noqa: S311
-                pow(10, RANDOM_LENGTH),
-                pow(10, RANDOM_LENGTH + 1),
+                pow(10, self.options.random_length),
+                pow(10, self.options.random_length + 1),
             )
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}{rand}"
@@ -226,7 +216,7 @@ class PageFetcher:
             with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
                 f.write(content)
 
-        self.console.print(r.info())
+        self.console.print(r.info(self.options))
         return r
 
     def show_statistics_report(self) -> None:
@@ -248,12 +238,14 @@ class PageFetcher:
             text = Text("❌ Failed Responses:\n", style="bold")
             self.console.print(text)
             for r in failed_responses:
-                self.console.print(r.info())
+                self.console.print(r.info(self.options))
             sys.stderr.write("\n")
 
-        slow_responses = self.report.get_slow_responses()[:SLOW_NUM]
+        slow_responses = self.report.get_slow_responses()[: self.options.slow_num]
         if slow_responses:
-            text = Text(f"🐢 Top {SLOW_NUM} Slow Responses:\n", style="bold")
+            text = Text(
+                f"🐢 Top {self.options.slow_num} Slow Responses:\n", style="bold"
+            )
             self.console.print(text)
             for r in slow_responses:
-                self.console.print(r.info())
+                self.console.print(r.info(self.options))

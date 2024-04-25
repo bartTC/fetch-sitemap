@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import pathlib
 from dataclasses import dataclass
 from importlib import metadata
 from typing import Any
@@ -10,6 +11,8 @@ import rich_click as click
 __version__ = metadata.version("fetch-sitemap")
 __author__ = "Martin Mahner"
 
+click.rich_click.USE_RICH_MARKUP = True
+
 
 @dataclass
 class Options:
@@ -18,9 +21,12 @@ class Options:
     limit: int | None
     output_dir: str | None
     random: bool
+    random_length: int
     report_path: str | None
-    concurrency_limit: int = 5
-    request_timeout: int = 30
+    concurrency_limit: int
+    request_timeout: int
+    slow_threshold: float
+    slow_num: int
 
 
 @click.command(
@@ -28,10 +34,11 @@ class Options:
 )
 @click.argument("sitemap_url", type=str)
 @click.option(
+    "-a",
     "--basic-auth",
     type=str,
     required=False,
-    help="Basic auth information. Use: 'username:password'.",
+    help="Basic auth information. Format: 'username:password'",
 )
 @click.option(
     "-l",
@@ -55,6 +62,7 @@ class Options:
     help="Timeout for fetching a URL in seconds.",
 )
 @click.option(
+    "-r",
     "--random",
     is_flag=True,
     help=(
@@ -62,17 +70,44 @@ class Options:
     ),
 )
 @click.option(
+    "--random-length",
+    type=int,
+    default=15,
+    envvar="RANDOM_LENGTH",
+    help="Length of the --random hash.",
+)
+@click.option(
+    "-p",
     "--report-path",
-    type=click.Path(),
+    type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path),
     required=False,
-    help="Store results in a CSV file (example: ./report.csv).",
+    help="Store results in a CSV file. [dim]Example: ./report.csv[/]",
 )
 @click.option(
     "-o",
     "--output-dir",
-    type=click.Path(),
+    type=click.Path(file_okay=False, dir_okay=True, path_type=pathlib.Path),
     required=False,
-    help="Store all fetched sitemap documents in this folder.",
+    help=(
+        "Store all fetched sitemap documents in this folder. "
+        "[dim]Example: /tmp/my.domain.com/[/]"
+    ),
+)
+@click.option(
+    "--slow-threshold",
+    type=float,
+    required=False,
+    default=5.0,
+    envvar="SLOW_THRESHOLD",
+    help="Responses slower than this (in seconds) are considered 'slow'.",
+)
+@click.option(
+    "--slow-num",
+    type=int,
+    required=False,
+    default=10,
+    envvar="SLOW_NUM",
+    help="How many 'slow' responses to show.",
 )
 @click.version_option(__version__, "-v", "--version")
 def main(**kwargs: Any) -> None:
