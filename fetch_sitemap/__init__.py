@@ -16,17 +16,17 @@ click.rich_click.USE_RICH_MARKUP = True
 
 @dataclass
 class Options:
-    sitemap_url: str
     basic_auth: str | None
+    concurrency_limit: int
     limit: int | None
-    output_dir: str | None
+    output_dir: pathlib.Path | None
     random: bool
     random_length: int
-    report_path: str | None
-    concurrency_limit: int
+    report_path: pathlib.Path | None
     request_timeout: int
-    slow_threshold: float
+    sitemap_url: str
     slow_num: int
+    slow_threshold: float
 
 
 @click.command(

@@ -126,21 +126,19 @@ class PageFetcher:
         self.show_statistics_report()
 
         if self.options.report_path:
-            with (
-                pathlib.Path(self.options.report_path)
-                .expanduser()
-                .open(
-                    "w",
-                    newline="",
-                ) as csvfile
-            ):
+            outfile = self.options.report_path.expanduser().absolute()
+            outfile.parent.mkdir(parents=True, exist_ok=True)
+            with outfile.open(
+                "w",
+                newline="",
+            ) as csvfile:
                 w = csv.writer(
                     csvfile,
                     delimiter=",",
                     quotechar='"',
                     quoting=csv.QUOTE_MINIMAL,
                 )
-                w.writerow(["url", "status", "response time"])
+                w.writerow(["URL", "Status", "Response Time"])
                 for r in self.report.responses:
                     w.writerow(dataclasses.astuple(r))
 
@@ -199,18 +197,13 @@ class PageFetcher:
             r = Response(url=url, status=408, response_time=Decimal(-1))
 
         # Store the content of each Sitemap document in a local file
-        if (
-            response
-            and self.options.output_dir
-            and (
-                outdir := pathlib.Path(self.options.output_dir).expanduser().absolute()
-            )
-        ):
+        if response and self.options.output_dir:
             if response.url.path in ["/", ""]:
                 path = "index"
             else:
                 path = response.url.path.lstrip("/").rstrip("/")
 
+            outdir = self.options.output_dir.expanduser().absolute()
             outfile = outdir / f"{path}.html"
             outfile.parent.mkdir(parents=True, exist_ok=True)
             with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
@@ -249,3 +242,18 @@ class PageFetcher:
             self.console.print(text)
             for r in slow_responses:
                 self.console.print(r.info(self.options))
+
+        if self.options.report_path or self.options.output_dir:
+            self.console.print("")
+
+        if self.options.report_path:
+            self.console.print(
+                f" 📊 Results are written to "
+                f"[magenta underline]{self.options.report_path}[/]"
+            )
+
+        if self.options.output_dir:
+            self.console.print(
+                f" 💾 Documents are stored in "
+                f"[magenta underline]{self.options.output_dir}[/]"
+            )
