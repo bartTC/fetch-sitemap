@@ -76,13 +76,16 @@ class PageFetcher:
     auth: BasicAuth | None
     output_dir: pathlib.Path
     semaphore: asyncio.Semaphore
-
+    headers: dict[str, str]
     sitemap_counter: int = 0
 
     def __init__(self, options: Options) -> None:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
         self.semaphore = asyncio.Semaphore(options.concurrency_limit)
+
+        if options.user_agent:
+            self.headers = {"User-Agent": options.user_agent}
 
         self.auth = None
         if options.basic_auth:
@@ -97,47 +100,54 @@ class PageFetcher:
 
     async def run(self) -> None:
         """
-        Fetch the given sitemap, extract all URLs and then call each URL  individually.
+        Fetch the given sitemap, extract all URLs and then call each URL individually.
         """
         self.console = Console()
-        sitemap_urls = list(set(await self.get_sitemap_urls(self.options.sitemap_url)))
 
-        self.console.print(
-            f"\n💪 Found {len(sitemap_urls)} documents across "
-            f"{self.sitemap_counter} Sitemap files.\n"
-        )
+        async with ClientSession(
+            auth=self.auth, timeout=self.timeout, headers=self.headers
+        ) as session:
+            sitemap_urls = list(
+                set(await self.get_sitemap_urls(session, self.options.sitemap_url))
+            )
 
-        if self.report.limit:
-            sitemap_urls = sitemap_urls[: self.report.limit]
+            self.console.print(
+                f"\n💪 Found {len(sitemap_urls)} documents across "
+                f"{self.sitemap_counter} Sitemap files.\n"
+            )
 
-        start = time.time()
-        async with ClientSession(auth=self.auth, timeout=self.timeout) as session:
+            if self.report.limit:
+                sitemap_urls = sitemap_urls[: self.report.limit]
+
+            start = time.time()
             self.report.responses = await asyncio.gather(
                 *[self.fetch(session, url) for url in sitemap_urls]
             )
 
-        end = time.time()
-        self.report.total_time = Decimal(end - start)
-        self.show_statistics_report()
+            end = time.time()
+            self.report.total_time = Decimal(end - start)
+            self.show_statistics_report()
 
-        if self.options.report_path:
-            outfile = self.options.report_path.expanduser().absolute()
-            outfile.parent.mkdir(parents=True, exist_ok=True)
-            with outfile.open(
-                "w",
-                newline="",
-            ) as csvfile:
-                w = csv.writer(
-                    csvfile,
-                    delimiter=",",
-                    quotechar='"',
-                    quoting=csv.QUOTE_MINIMAL,
-                )
-                w.writerow(["URL", "Status", "Response Time"])
-                for r in self.report.responses:
-                    w.writerow(dataclasses.astuple(r))
+            if self.options.report_path:
+                outfile = self.options.report_path.expanduser().absolute()
+                outfile.parent.mkdir(parents=True, exist_ok=True)
+                with outfile.open(
+                    "w",
+                    newline="",
+                ) as csvfile:
+                    w = csv.writer(
+                        csvfile,
+                        delimiter=",",
+                        quotechar='"',
+                        quoting=csv.QUOTE_MINIMAL,
+                    )
+                    w.writerow(["URL", "Status", "Response Time"])
+                    for r in self.report.responses:
+                        w.writerow(dataclasses.astuple(r))
 
-    async def get_sitemap_urls(self, sitemap_url: str) -> Iterable[str]:
+    async def get_sitemap_urls(
+        self, session: ClientSession, sitemap_url: str
+    ) -> Iterable[str]:
         """
         Get the main sitemap.xml file and extract all location url's of it.
         """
@@ -145,10 +155,7 @@ class PageFetcher:
 
         self.console.print(f"🔬 Parsing {sitemap_url}")
 
-        async with (
-            ClientSession(auth=self.auth, timeout=self.timeout) as session,
-            session.get(sitemap_url) as response,
-        ):
+        async with session.get(sitemap_url) as response:
             content = await response.content.read()
 
             if response.status == HTTPStatus.UNAUTHORIZED:
@@ -178,7 +185,7 @@ class PageFetcher:
                 for locs in (s.getElementsByTagName("loc") for s in sitemaps):
                     for loc in locs:
                         sitemap_url = loc.firstChild.nodeValue
-                        sub_urls = await self.get_sitemap_urls(sitemap_url)
+                        sub_urls = await self.get_sitemap_urls(session, sitemap_url)
                         urls += sub_urls
 
             if sitemap_urls := document.getElementsByTagName("url"):

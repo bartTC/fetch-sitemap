@@ -28,6 +28,7 @@ class Options:
     sitemap_url: str
     slow_num: int
     slow_threshold: float
+    user_agent: str
 
 
 @click.command(
@@ -115,6 +116,13 @@ class Options:
     default=10,
     envvar="SLOW_NUM",
     help="How many 'slow' responses to show.",
+)
+@click.option(
+    "--user-agent",
+    type=str,
+    required=False,
+    default=f"Mozilla/5.0 (compatible; fetch-sitemap/{__version__})",
+    help='User-Agent string set in the HTTP header. Pass "" to disable.',
 )
 @click.version_option(__version__, "-v", "--version")
 def main(**kwargs: Any) -> None:
