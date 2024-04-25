@@ -22,6 +22,7 @@ class Options:
     output_dir: pathlib.Path | None
     random: bool
     random_length: int
+    recursive: bool
     report_path: pathlib.Path | None
     request_timeout: int
     sitemap_url: str
@@ -46,6 +47,12 @@ class Options:
     type=int,
     default=None,
     help="Maximum number of URLs to fetch from the given sitemap.xml.",
+)
+@click.option(
+    "--recursive/--no-recursive",
+    type=bool,
+    default=True,
+    help="Recursively fetch all sitemap documents from the given sitemap.xml. ",
 )
 @click.option(
     "-c",

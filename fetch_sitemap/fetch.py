@@ -7,18 +7,20 @@ import pathlib
 import re
 import sys
 import time
+import xml.parsers.expat
 from decimal import Decimal
 from http import HTTPStatus
 from random import randint
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
+from defusedxml import minidom
 from rich.console import Console
 from rich.text import Text
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Iterable
+    from collections.abc import Iterable
 
     from fetch_sitemap import Options
 
@@ -66,20 +68,6 @@ class Report:
         return filter(lambda r: isinstance(r, Exception) or r.is_error, self.responses)
 
 
-async def gather_with_concurrency(
-    n: int,
-    *coroutines: Awaitable,
-    **kwargs: Any,
-) -> tuple[Any]:
-    semaphore = asyncio.Semaphore(n)
-
-    async def sem_coro(coro: Awaitable) -> Awaitable:
-        async with semaphore:
-            return await coro
-
-    return await asyncio.gather(*(sem_coro(c) for c in coroutines), **kwargs)
-
-
 class PageFetcher:
     console: Console
     options: Options
@@ -87,10 +75,14 @@ class PageFetcher:
     report: Report
     auth: BasicAuth | None
     output_dir: pathlib.Path
+    semaphore: asyncio.Semaphore
+
+    sitemap_counter: int = 0
 
     def __init__(self, options: Options) -> None:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
+        self.semaphore = asyncio.Semaphore(options.concurrency_limit)
 
         self.auth = None
         if options.basic_auth:
@@ -108,17 +100,20 @@ class PageFetcher:
         Fetch the given sitemap, extract all URLs and then call each URL  individually.
         """
         self.console = Console()
-        sitemap_urls = await self.get_sitemap_urls()
+        sitemap_urls = list(set(await self.get_sitemap_urls(self.options.sitemap_url)))
+
+        self.console.print(
+            f"\n💪 Found {len(sitemap_urls)} documents across "
+            f"{self.sitemap_counter} Sitemap files.\n"
+        )
 
         if self.report.limit:
             sitemap_urls = sitemap_urls[: self.report.limit]
 
         start = time.time()
         async with ClientSession(auth=self.auth, timeout=self.timeout) as session:
-            self.report.responses = await gather_with_concurrency(
-                self.options.concurrency_limit,
-                *[self.fetch(session, url) for url in sitemap_urls],
-                return_exceptions=False,
+            self.report.responses = await asyncio.gather(
+                *[self.fetch(session, url) for url in sitemap_urls]
             )
 
         end = time.time()
@@ -142,75 +137,104 @@ class PageFetcher:
                 for r in self.report.responses:
                     w.writerow(dataclasses.astuple(r))
 
-    async def get_sitemap_urls(self) -> re.findall:
+    async def get_sitemap_urls(self, sitemap_url: str) -> Iterable[str]:
         """
         Get the main sitemap.xml file and extract all location url's of it.
         """
+        urls = []
+
+        self.console.print(f"🔬 Parsing {sitemap_url}")
+
         async with (
             ClientSession(auth=self.auth, timeout=self.timeout) as session,
-            session.get(self.options.sitemap_url) as response,
+            session.get(sitemap_url) as response,
         ):
             content = await response.content.read()
+
             if response.status == HTTPStatus.UNAUTHORIZED:
                 sys.stderr.write(
-                    "❌ Unable to fetch sitemap.xml file. Authorization error.\n\n",
+                    f"❌  Unable to fetch {sitemap_url}. " f"Authorization error.\n",
                 )
-                sys.stderr.write(content.decode("utf-8"))
-                sys.exit(1)
+                return []
 
-            elif response.status >= HTTPStatus.MULTIPLE_CHOICES:
+            if response.status >= HTTPStatus.MULTIPLE_CHOICES:
                 sys.stderr.write(
-                    f"❌ Unable to fetch sitemap.xml file. "
-                    f"Error: {response.status}\n\n",
+                    f"❌  Unable to fetch {sitemap_url}. Error: {response.status}\n",
                 )
-                sys.stderr.write(content.decode("utf-8"))
-                sys.exit(1)
+                return []
 
-            return LOG_ITEMS.findall(content.decode("utf-8"))
+            # Parse XML
+            try:
+                document = minidom.parseString(content)
+            except xml.parsers.expat.ExpatError as e:
+                sys.stderr.write(f"❌ Unable to parse {sitemap_url}: {e}\n")
+                return []
+
+            # If this sitemap.xml contains links to other sitemap.xml,
+            # recursively fetch them.
+            if self.options.recursive and (
+                sitemaps := document.getElementsByTagName("sitemap")
+            ):
+                for locs in (s.getElementsByTagName("loc") for s in sitemaps):
+                    for loc in locs:
+                        sitemap_url = loc.firstChild.nodeValue
+                        sub_urls = await self.get_sitemap_urls(sitemap_url)
+                        urls += sub_urls
+
+            if sitemap_urls := document.getElementsByTagName("url"):
+                for locs in (s.getElementsByTagName("loc") for s in sitemap_urls):
+                    for loc in locs:
+                        urls.append(loc.firstChild.nodeValue)
+
+            self.sitemap_counter += 1
+
+            return urls
 
     async def fetch(self, session: ClientSession, url: str) -> Response | None:
         """
         Fetch the given URL concurrently.
         """
-        # Append a random integer to each URL to bypass frontend cache.
-        if self.options.random:
-            rand = randint(  # noqa: S311
-                pow(10, self.options.random_length),
-                pow(10, self.options.random_length + 1),
-            )
-            sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}{rand}"
-
-        response: ClientResponse | None
-        start = time.time()
-        try:
-            async with session.get(url) as response:
-                response_time = Decimal(time.time() - start)
-                content = await response.text()
-                r = Response(
-                    url=url,
-                    status=response.status,
-                    response_time=response_time,
+        # Semaphor Boundary so we don't fetch all at once
+        async with self.semaphore:
+            # Append a random integer to each URL to bypass frontend cache.
+            if self.options.random:
+                rand = randint(  # noqa: S311
+                    pow(10, self.options.random_length),
+                    pow(10, self.options.random_length + 1),
                 )
-        except TimeoutError:
-            response = None
-            r = Response(url=url, status=408, response_time=Decimal(-1))
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}{rand}"
 
-        # Store the content of each Sitemap document in a local file
-        if response and self.options.output_dir:
-            if response.url.path in ["/", ""]:
-                path = "index"
-            else:
-                path = response.url.path.lstrip("/").rstrip("/")
+            response: ClientResponse | None
+            start = time.time()
+            try:
+                async with session.get(url) as response:
+                    response_time = Decimal(time.time() - start)
+                    content = await response.text()
+                    r = Response(
+                        url=url,
+                        status=response.status,
+                        response_time=response_time,
+                    )
+            except TimeoutError:
+                response = None
+                r = Response(url=url, status=408, response_time=Decimal(-1))
 
-            outdir = self.options.output_dir.expanduser().absolute()
-            outfile = outdir / f"{path}.html"
-            outfile.parent.mkdir(parents=True, exist_ok=True)
-            with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
-                f.write(content)
+            # Store the content of each Sitemap document in a local file
+            if response and self.options.output_dir:
+                if response.url.path in ["/", ""]:
+                    path = "index"
+                else:
+                    path = response.url.path.lstrip("/").rstrip("/")
 
-        self.console.print(r.info(self.options))
-        return r
+                outdir = self.options.output_dir.expanduser().absolute()
+                outfile = outdir / f"{path}.html"
+                outfile.parent.mkdir(parents=True, exist_ok=True)
+                with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
+                    f.write(content)
+
+            self.console.print(r.info(self.options))
+            return r
 
     def show_statistics_report(self) -> None:
         text = Text(
@@ -228,18 +252,22 @@ class PageFetcher:
 
         failed_responses = list(self.report.get_failed_responses())
         if len(failed_responses) > 0:
-            text = Text("❌ Failed Responses:\n", style="bold")
-            self.console.print(text)
+            self.console.print(
+                "❌ Failed Responses:\n",
+                style="bold underline",
+                highlight=False,
+            )
             for r in failed_responses:
                 self.console.print(r.info(self.options))
             sys.stderr.write("\n")
 
         slow_responses = self.report.get_slow_responses()[: self.options.slow_num]
         if slow_responses:
-            text = Text(
-                f"🐢 Top {self.options.slow_num} Slow Responses:\n", style="bold"
+            self.console.print(
+                f"🐢 Top {self.options.slow_num} Slow Responses:\n",
+                style="bold underline",
+                highlight=False,
             )
-            self.console.print(text)
             for r in slow_responses:
                 self.console.print(r.info(self.options))
 
