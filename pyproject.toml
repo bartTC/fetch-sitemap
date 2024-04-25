@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "fetch-sitemap"
-version = "15"
+version = "16"
 description = "Fetch a given sitemap and retrieve all URLs in it."
 authors = ["Martin Mahner <martin@mahner.org>"]
 license = "MIT"
