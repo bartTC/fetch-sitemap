@@ -5,41 +5,37 @@ Useful for (load) testing the entire site for error responses.
 
 ![Sample Output](https://raw.githubusercontent.com/bartTC/fetch-sitemap/main/example.png)
 
-*Note:* The default concurrency limit is 5, so five URLs are fetched at once. 
-Depending on your server's worker count, this might already be enough to DoS it.
-Try `--concurrency-limit=2` and increase if you feel comfortable.
+## Installation
 
-```
-Usage: fetch-sitemap [-h] [--basic-auth BASIC_AUTH] [-l LIMIT] [-c CONCURRENCY_LIMIT]
-                     [-t REQUEST_TIMEOUT] [--random] [--report-path REPORT_PATH]
-                     [-o OUTPUT] [-v]
-                     sitemap_url
-
-Fetch a given sitemap and retrieve all URLs in it.
-
-Positional Arguments:
-  sitemap_url           URL of the sitemap to fetch
-
-Options:
-  -h, --help            show this help message and exit
-  --basic-auth BASIC_AUTH
-                        Basic auth information. Use: 'username:password' (default: None)
-  -l, --limit LIMIT     Maximum number of URLs to fetch from the given sitemap.xml
-                        (default: None)
-  -c, --concurrency-limit CONCURRENCY_LIMIT
-                        Max number of concurrent requests (default: 5)
-  -t, --request-timeout REQUEST_TIMEOUT
-                        Timeout for fetching a URL in seconds (default: 30)
-  --random              Append a random string like ?12334232343 to each URL to bypass
-                        frontend cache (default: False)
-  --report-path REPORT_PATH
-                        Store results in a CSV file (example: ./report.csv) (default:
-                        None)
-  -o, --output-dir OUTPUT
-                        Store all fetched sitemap documents in this folder (default: None)
-  -v, --version         Show program's version number and exit
+```bash 
+$ pip install fetch-sitemap
 ```
 
+
+## Usage 
+
+```
+$ fetch-sitemap --help
+
+ Usage: fetch-sitemap [OPTIONS] SITEMAP_URL
+
+ Fetch a given sitemap and retrieve all URLs in it.
+
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --basic-auth         -a  TEXT       Basic auth information. Format: 'username:password'                                         │
+│ --limit              -l  INTEGER    Maximum number of URLs to fetch from the given sitemap.xml.                                 │
+│ --concurrency-limit  -c  INTEGER    Max number of concurrent requests. [default: 5]                                             │
+│ --request-timeout    -t  INTEGER    Timeout for fetching a URL in seconds. [default: 30]                                        │
+│ --random             -r             Append a random string like ?12334232343 to each URL to bypass frontend cache.              │
+│ --random-length          INTEGER    Length of the --random hash. [default: 15]                                                  │
+│ --report-path        -p  FILE       Store results in a CSV file. Example: ./report.csv                                          │
+│ --output-dir         -o  DIRECTORY  Store all fetched sitemap documents in this folder. Example: /tmp/my.domain.com/            │
+│ --slow-threshold         FLOAT      Responses slower than this (in seconds) are considered 'slow'. [default: 5.0]               │
+│ --slow-num               INTEGER    How many 'slow' responses to show. [default: 10]                                            │
+│ --version            -v             Show the version and exit.                                                                  │
+│ --help                              Show this message and exit.                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
 
 ## 🤺 Local Development
 
