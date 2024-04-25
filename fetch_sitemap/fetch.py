@@ -83,9 +83,10 @@ class PageFetcher:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
         self.semaphore = asyncio.Semaphore(options.concurrency_limit)
+        self.headers = {}
 
         if options.user_agent:
-            self.headers = {"User-Agent": options.user_agent}
+            self.headers["User-Agent"] = options.user_agent
 
         self.auth = None
         if options.basic_auth:

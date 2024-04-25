@@ -122,7 +122,7 @@ class Options:
     type=str,
     required=False,
     default=f"Mozilla/5.0 (compatible; fetch-sitemap/{__version__})",
-    help='User-Agent string set in the HTTP header. Pass "" to disable.',
+    help="User-Agent string set in the HTTP header.",
 )
 @click.version_option(__version__, "-v", "--version")
 def main(**kwargs: Any) -> None:
