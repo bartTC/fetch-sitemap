@@ -90,7 +90,7 @@ class PageFetcher:
 
             with self.console.status(
                 "[bold green]Fetching documents...", spinner="dots2"
-            ) as statusbar:
+            ):
                 start = time.time()
                 self.report.responses = await asyncio.gather(
                     *[self.fetch(session, url) for url in sitemap_urls]
@@ -101,7 +101,7 @@ class PageFetcher:
         self.write_report()
         self.show_report()
 
-    async def get_sitemap_urls(
+    async def get_sitemap_urls(  # noqa: C901 PLR0912 too complex
         self, session: ClientSession, sitemap_url: str
     ) -> Iterable[str]:
         """
@@ -169,7 +169,6 @@ class PageFetcher:
         """
         Fetch the given URL concurrently.
         """
-
         # Semaphor Boundary so we don't fetch all at once
         async with self.semaphore:
             # Append a random integer to each URL to bypass frontend cache.
