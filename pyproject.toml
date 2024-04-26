@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "fetch-sitemap"
-version = "19"
+version = "20"
 description = "Fetch a given sitemap and retrieve all URLs in it."
 authors = ["Martin Mahner <martin@mahner.org>"]
 license = "MIT"
@@ -18,9 +18,10 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.9"
 aiohttp = ">=3.9.0"
-rich = ">=12"
-rich-click = "^1.7.4"
-defusedxml = "^0.7.1"
+rich = "*"
+rich-click = "*"
+defusedxml = "*"
+aiofiles = "*"
 
 [tool.poetry.scripts]
 fetch-sitemap = "fetch_sitemap:main"
