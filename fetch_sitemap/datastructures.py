@@ -72,7 +72,7 @@ class Report:
     limit: int | None
     concurrency_limit: int
     total_time: Decimal = field(default=Decimal(0))
-    responses: list[Response | Exception | None] = field(default=list)
+    responses: list[Response | Exception | None] = field(default_factory=list)
 
     def get_slow_responses(self, threshold: float) -> list[Response]:
         """Get the slowest responses."""
