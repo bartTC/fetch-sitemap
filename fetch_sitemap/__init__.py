@@ -4,6 +4,7 @@ import asyncio
 import pathlib
 from importlib import metadata
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import rich_click as click
 
@@ -29,6 +30,20 @@ def validate_basic_auth(
 
     msg = "Format must be '<username>:<password>'"
     raise click.BadParameter(msg)
+
+
+class URLParamType(click.ParamType):
+    name = "URL"
+
+    def convert(
+        self,
+        value: Any,
+        param: click.ParamType,  # noqa: ARG002: Unused argument
+        ctx: click.Context,  # noqa: ARG002: Unused argument
+    ) -> str:
+        if urlparse(value).scheme not in ["http", "https"]:
+            self.fail(f"{value} is not a URL")
+        return value
 
 
 class IntOrAll(click.ParamType):
@@ -60,7 +75,7 @@ class IntOrAll(click.ParamType):
     context_settings={"show_default": True},
     no_args_is_help=True,
 )
-@click.argument("sitemap_url", type=str)
+@click.argument("sitemap_url", type=URLParamType())
 @click.option(
     "-a",
     "--basic-auth",

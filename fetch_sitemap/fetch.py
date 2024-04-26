@@ -16,6 +16,7 @@ import aiofiles
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 from aiohttp.client_exceptions import (
     ClientConnectorError,
+    InvalidURL,
     ServerConnectionError,
     ServerTimeoutError,
 )
@@ -121,7 +122,7 @@ class PageFetcher:
             return []
 
         # Connection issues on the client side (invalid URL)
-        except ClientConnectorError:
+        except (ClientConnectorError, InvalidURL):
             self.error(f"Unable to fetch {sitemap_url}. Connect call failed.")
             return []
 
