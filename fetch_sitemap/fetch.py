@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import csv
 import dataclasses
-import pathlib
-import re
 import sys
 import time
 import xml.parsers.expat
@@ -14,85 +12,49 @@ from random import randint
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
-from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
+import aiofiles
+from aiohttp import BasicAuth, ClientSession, ClientTimeout
+from aiohttp.client_exceptions import (
+    ClientConnectorError,
+    ServerConnectionError,
+    ServerTimeoutError,
+)
 from defusedxml import minidom
 from rich.console import Console
 from rich.text import Text
 
+from .datastructures import Options, Report, Response
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from fetch_sitemap import Options
-
-LOG_ITEMS = re.compile(r"<loc>(.*?)</loc>")
-
-
-@dataclasses.dataclass
-class Response:
-    url: str
-    status: int
-    response_time: Decimal
-
-    @property
-    def is_error(self) -> bool:
-        return self.status >= HTTPStatus.BAD_REQUEST
-
-    def info(self, options: Options) -> str:
-        if self.is_error:
-            status = f"[bold red]{self.status}[/bold red]"
-        else:
-            status = f"[bold green]{self.status}[/bold green]"
-
-        if self.status == HTTPStatus.REQUEST_TIMEOUT:
-            response_time = "[bold magenta]Timeout[/bold magenta]"
-        elif self.response_time > options.slow_threshold:
-            response_time = f"[bold red]{self.response_time:.3f}s[/bold red]"
-        else:
-            response_time = f"[bold green]{self.response_time:.3f}s[/bold green]"
-
-        return f"{status} {self.url} {response_time}"
-
-
-@dataclasses.dataclass
-class Report:
-    sitemap_url: str
-    limit: int | None
-    concurrency_limit: int
-    total_time: Decimal = Decimal(0)
-    responses: list[Response] | None = None
-
-    def get_slow_responses(self) -> Iterable[Response]:
-        return sorted(self.responses, key=lambda r: r.response_time, reverse=True)
-
-    def get_failed_responses(self) -> Iterable[Response]:
-        return filter(lambda r: isinstance(r, Exception) or r.is_error, self.responses)
+    from aiohttp import ClientResponse
 
 
 class PageFetcher:
     console: Console
-    options: Options
-    timeout: ClientTimeout
-    report: Report
-    auth: BasicAuth | None
-    output_dir: pathlib.Path
-    semaphore: asyncio.Semaphore
     headers: dict[str, str]
+    options: Options
+    report: Report
+    semaphore: asyncio.Semaphore
+    timeout: ClientTimeout
+
+    auth: BasicAuth | None = None
     sitemap_counter: int = 0
 
     def __init__(self, options: Options) -> None:
         self.options = options
         self.timeout = ClientTimeout(options.request_timeout)
         self.semaphore = asyncio.Semaphore(options.concurrency_limit)
-        self.headers = {}
 
-        if options.user_agent:
-            self.headers["User-Agent"] = options.user_agent
+        # Default headers for all requests
+        self.headers = {"User-Agent": options.user_agent}
 
-        self.auth = None
         if options.basic_auth:
-            login, password = str(options.basic_auth).split(":", 1)
+            login, password = options.basic_auth.split(":", 1)
             self.auth = BasicAuth(login, password=password, encoding="latin1")
 
+        # Initialize the report
         self.report = Report(
             sitemap_url=options.sitemap_url,
             concurrency_limit=options.concurrency_limit,
@@ -106,45 +68,38 @@ class PageFetcher:
         self.console = Console()
 
         async with ClientSession(
-            auth=self.auth, timeout=self.timeout, headers=self.headers
+            auth=self.auth,
+            timeout=self.timeout,
+            headers=self.headers,
         ) as session:
             sitemap_urls = list(
                 set(await self.get_sitemap_urls(session, self.options.sitemap_url))
             )
 
-            self.console.print(
-                f"\n💪 Found {len(sitemap_urls)} documents across "
-                f"{self.sitemap_counter} Sitemap files.\n"
-            )
+            if len(sitemap_urls) == 0:
+                self.error("No URLs to fetch found.", exit_now=True)
+            else:
+                self.console.print(
+                    f"\n💪 Found {len(sitemap_urls)} documents across "
+                    f"{self.sitemap_counter} Sitemap files.\n"
+                )
 
-            if self.report.limit:
-                sitemap_urls = sitemap_urls[: self.report.limit]
+            # Only fetch a subset of urls if options.report.limit is set.
+            # Can be useful for quick tests.
+            sitemap_urls = sitemap_urls[slice(0, self.report.limit)]
 
-            start = time.time()
-            self.report.responses = await asyncio.gather(
-                *[self.fetch(session, url) for url in sitemap_urls]
-            )
+            with self.console.status(
+                "[bold green]Fetching documents...", spinner="dots2"
+            ) as statusbar:
+                start = time.time()
+                self.report.responses = await asyncio.gather(
+                    *[self.fetch(session, url) for url in sitemap_urls]
+                )
+                end = time.time()
 
-            end = time.time()
-            self.report.total_time = Decimal(end - start)
-            self.show_statistics_report()
-
-            if self.options.report_path:
-                outfile = self.options.report_path.expanduser().absolute()
-                outfile.parent.mkdir(parents=True, exist_ok=True)
-                with outfile.open(
-                    "w",
-                    newline="",
-                ) as csvfile:
-                    w = csv.writer(
-                        csvfile,
-                        delimiter=",",
-                        quotechar='"',
-                        quoting=csv.QUOTE_MINIMAL,
-                    )
-                    w.writerow(["URL", "Status", "Response Time"])
-                    for r in self.report.responses:
-                        w.writerow(dataclasses.astuple(r))
+        self.report.total_time = Decimal(end - start)
+        self.write_report()
+        self.show_report()
 
     async def get_sitemap_urls(
         self, session: ClientSession, sitemap_url: str
@@ -156,52 +111,65 @@ class PageFetcher:
 
         self.console.print(f"🔬 Parsing {sitemap_url}")
 
-        async with session.get(sitemap_url) as response:
-            content = await response.content.read()
+        try:
+            async with session.get(sitemap_url) as response:
+                content = await response.content.read()
 
-            if response.status == HTTPStatus.UNAUTHORIZED:
-                sys.stderr.write(
-                    f"❌  Unable to fetch {sitemap_url}. " f"Authorization error.\n",
-                )
-                return []
+        # Connection issues on the server side (timeout, broken response)
+        except (ServerTimeoutError, ServerConnectionError):
+            self.error(f"Unable to fetch {sitemap_url}. Server Timeout.")
+            return []
 
-            if response.status >= HTTPStatus.MULTIPLE_CHOICES:
-                sys.stderr.write(
-                    f"❌  Unable to fetch {sitemap_url}. Error: {response.status}\n",
-                )
-                return []
+        # Connection issues on the client side (invalid URL)
+        except ClientConnectorError:
+            self.error(f"Unable to fetch {sitemap_url}. Connect call failed.")
+            return []
 
-            # Parse XML
-            try:
-                document = minidom.parseString(content)
-            except xml.parsers.expat.ExpatError as e:
-                sys.stderr.write(f"❌ Unable to parse {sitemap_url}: {e}\n")
-                return []
+        # Connection OK, but not authorized.
+        if response.status == HTTPStatus.UNAUTHORIZED:
+            self.error(
+                f"Unable to fetch {sitemap_url}. "
+                f"Authorization Error: {response.status}"
+            )
+            return []
 
-            # If this sitemap.xml contains links to other sitemap.xml,
-            # recursively fetch them.
-            if self.options.recursive and (
-                sitemaps := document.getElementsByTagName("sitemap")
-            ):
-                for locs in (s.getElementsByTagName("loc") for s in sitemaps):
-                    for loc in locs:
-                        sitemap_url = loc.firstChild.nodeValue
-                        sub_urls = await self.get_sitemap_urls(session, sitemap_url)
-                        urls += sub_urls
+        # Any other error response
+        if response.status >= HTTPStatus.BAD_REQUEST:
+            self.error(f"Unable to fetch {sitemap_url}. Error: {response.status}")
+            return []
 
-            if sitemap_urls := document.getElementsByTagName("url"):
-                for locs in (s.getElementsByTagName("loc") for s in sitemap_urls):
-                    for loc in locs:
-                        urls.append(loc.firstChild.nodeValue)
+        # Parse XML
+        try:
+            document = minidom.parseString(content)
+        except xml.parsers.expat.ExpatError as e:
+            self.error(f"Unable to parse {sitemap_url}: {e}\n")
+            return []
 
-            self.sitemap_counter += 1
+        # If this sitemap.xml contains links to other sitemap.xml,
+        # recursively fetch them.
+        if self.options.recursive and (
+            other_sitemaps := document.getElementsByTagName("sitemap")
+        ):
+            for locs in (s.getElementsByTagName("loc") for s in other_sitemaps):
+                for loc in locs:
+                    other_sitemap_url = loc.firstChild.nodeValue
+                    sub_urls = await self.get_sitemap_urls(session, other_sitemap_url)
+                    urls += sub_urls
 
-            return urls
+        if sitemap_urls := document.getElementsByTagName("url"):
+            for locs in (s.getElementsByTagName("loc") for s in sitemap_urls):
+                for loc in locs:
+                    urls.append(loc.firstChild.nodeValue)
+
+        self.sitemap_counter += 1
+
+        return urls
 
     async def fetch(self, session: ClientSession, url: str) -> Response | None:
         """
         Fetch the given URL concurrently.
         """
+
         # Semaphor Boundary so we don't fetch all at once
         async with self.semaphore:
             # Append a random integer to each URL to bypass frontend cache.
@@ -213,38 +181,78 @@ class PageFetcher:
                 sep = "&" if "?" in url else "?"
                 url = f"{url}{sep}{rand}"
 
-            response: ClientResponse | None
+            client_response: ClientResponse | None
             start = time.time()
+
             try:
-                async with session.get(url) as response:
+                async with session.get(url) as client_response:
                     response_time = Decimal(time.time() - start)
-                    content = await response.text()
-                    r = Response(
+                    response = Response(
                         url=url,
-                        status=response.status,
+                        status=client_response.status,
                         response_time=response_time,
                     )
+
+                    # Store the content of each document in a local file
+                    if client_response and self.options.output_dir:
+                        content = await client_response.text()
+                        await self.store_response(client_response, content)
+
             except TimeoutError:
-                response = None
-                r = Response(url=url, status=408, response_time=Decimal(-1))
+                response = Response(url=url, status=408, response_time=Decimal(-1))
 
-            # Store the content of each Sitemap document in a local file
-            if response and self.options.output_dir:
-                if response.url.path in ["/", ""]:
-                    path = "index"
-                else:
-                    path = response.url.path.lstrip("/").rstrip("/")
+            self.console.print(
+                response.info(slow_threshold=self.options.slow_threshold)
+            )
+            return response
 
-                outdir = self.options.output_dir.expanduser().absolute()
-                outfile = outdir / f"{path}.html"
-                outfile.parent.mkdir(parents=True, exist_ok=True)
-                with pathlib.Path(outfile).open("w") as f:  # noqa: ASYNC101
-                    f.write(content)
+    async def store_response(self, response: ClientResponse, content: str) -> None:
+        """
+        Store the response body of each URL in a file.
+        This is similar to a webcrawler.
 
-            self.console.print(r.info(self.options))
-            return r
+        :param response:  The client response object by aiohttp
+        :param content: The text content of the current URL.
+        :return: None
+        """
+        if response.url.path in ["/", ""]:
+            path = "index"
+        else:
+            path = response.url.path.lstrip("/").rstrip("/")
 
-    def show_statistics_report(self) -> None:
+        outdir = self.options.output_dir.expanduser().absolute()
+        outfile = outdir / f"{path}.html"
+        outfile.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(outfile, mode="w") as f:
+            await f.write(content)
+
+    def write_report(self) -> None:
+        """
+        Write the report to a CSV file.
+        """
+        if not self.options.report_path:
+            return
+
+        outfile = self.options.report_path.expanduser().absolute()
+        outfile.parent.mkdir(parents=True, exist_ok=True)
+        with outfile.open(
+            "w",
+            newline="",
+        ) as csvfile:
+            w = csv.writer(
+                csvfile,
+                delimiter=",",
+                quotechar='"',
+                quoting=csv.QUOTE_MINIMAL,
+            )
+            w.writerow(["URL", "Status", "Response Time"])
+            for r in self.report.responses:
+                w.writerow(dataclasses.astuple(r))
+
+    def show_report(self) -> None:
+        """
+        Display the report.
+        """
         text = Text(
             dedent(
                 f"""
@@ -258,38 +266,65 @@ class PageFetcher:
         )
         self.console.print(text)
 
-        failed_responses = list(self.report.get_failed_responses())
-        if len(failed_responses) > 0:
+        if failed_responses := self.report.get_failed_responses():
             self.console.print(
-                "❌ Failed Responses:\n",
+                ":cross_mark: Failed Responses:\n",
                 style="bold underline",
                 highlight=False,
+                emoji=True,
             )
             for r in failed_responses:
-                self.console.print(r.info(self.options))
-            sys.stderr.write("\n")
-
-        slow_responses = self.report.get_slow_responses()[: self.options.slow_num]
-        if slow_responses:
-            self.console.print(
-                f"🐢 Top {self.options.slow_num} Slow Responses:\n",
-                style="bold underline",
-                highlight=False,
-            )
-            for r in slow_responses:
-                self.console.print(r.info(self.options))
-
-        if self.options.report_path or self.options.output_dir:
+                self.console.print(r.info(slow_threshold=self.options.slow_threshold))
             self.console.print("")
+
+        # Only show a subset of slow responses if --slow-num is set
+        # options.slow_num = -1 indicates "ALL"
+        if self.options.slow_num == -1 or self.options.slow_num > 0:
+            slow_responses = self.report.get_slow_responses(self.options.slow_threshold)
+            slow_responses = slow_responses[: self.options.slow_num]
+
+            if slow_responses:
+                top = (
+                    ""
+                    if self.options.slow_num == -1
+                    else f"Top {self.options.slow_num} "
+                )
+                self.console.print(
+                    f":turtle: {top}Slow Responses:\n",
+                    style="bold underline",
+                    highlight=False,
+                    emoji=True,
+                )
+
+                for r in slow_responses:
+                    self.console.print(
+                        r.info(slow_threshold=self.options.slow_threshold)
+                    )
+                self.console.print("")
 
         if self.options.report_path:
             self.console.print(
-                f" 📊 Results are written to "
-                f"[magenta underline]{self.options.report_path}[/]"
+                f":bar_chart: Results are written to "
+                f"[magenta underline]{self.options.report_path}[/]",
+                emoji=True,
             )
 
         if self.options.output_dir:
             self.console.print(
-                f" 💾 Documents are stored in "
-                f"[magenta underline]{self.options.output_dir}[/]"
+                f":floppy_disk: Documents are stored in "
+                f"[magenta underline]{self.options.output_dir}[/]",
+                emoji=True,
             )
+
+    def error(self, msg: str, exit_now: bool = False) -> None:
+        """
+        Display an error message and optionally exit the program.
+
+        :param msg: The error message to display.
+        :param exit_now: Whether to exit the program after displaying the error message.
+                         Default is False.
+        :return: None
+        """
+        sys.stderr.write(f"❌ {msg}\n")
+        if exit_now:
+            sys.exit(1)
