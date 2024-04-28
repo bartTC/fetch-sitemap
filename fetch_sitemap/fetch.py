@@ -108,8 +108,6 @@ class PageFetcher:
         """
         Get the main sitemap.xml file and extract all location url's of it.
         """
-        urls = []
-
         self.console.print(f"🔬 Parsing {sitemap_url}")
 
         try:
@@ -117,7 +115,7 @@ class PageFetcher:
                 content = await response.content.read()
 
         # Connection issues on the server side (timeout, broken response)
-        except (ServerTimeoutError, ServerConnectionError):
+        except (ServerConnectionError, ServerTimeoutError):
             self.error(f"Unable to fetch {sitemap_url}. Server Timeout.")
             return []
 
@@ -146,6 +144,8 @@ class PageFetcher:
             self.error(f"Unable to parse {sitemap_url}: {e}\n")
             return []
 
+        urls = []
+
         # If this sitemap.xml contains links to other sitemap.xml,
         # recursively fetch them.
         if self.options.recursive and (
@@ -157,6 +157,7 @@ class PageFetcher:
                     sub_urls = await self.get_sitemap_urls(session, other_sitemap_url)
                     urls += sub_urls
 
+        # Extract all URLs of this sitemap.xml
         if sitemap_urls := document.getElementsByTagName("url"):
             for locs in (s.getElementsByTagName("loc") for s in sitemap_urls):
                 for loc in locs:
@@ -181,7 +182,6 @@ class PageFetcher:
                 sep = "&" if "?" in url else "?"
                 url = f"{url}{sep}{rand}"
 
-            client_response: ClientResponse | None
             start = time.time()
 
             try:
@@ -194,7 +194,7 @@ class PageFetcher:
                     )
 
                     # Store the content of each document in a local file
-                    if client_response and self.options.output_dir:
+                    if self.options.output_dir:
                         content = await client_response.text()
                         await self.store_response(client_response, content)
 

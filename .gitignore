@@ -1,7 +1,13 @@
-dist/
-
 *.egg-info
 *.pyc
 
+# Python Tooling
 .python-version
 .tool-versions
+
+# Build system
+dist/
+
+# Coverage
+.coverage
+htmlcov

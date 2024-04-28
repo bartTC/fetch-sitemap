@@ -44,9 +44,11 @@ class Response:
 
     @property
     def is_error(self) -> bool:
+        """Check if the Respons is any HTTP error (HTTP>=400)"""
         return self.status >= HTTPStatus.BAD_REQUEST
 
     def info(self, slow_threshold: float) -> str:
+        """Log line for this Response"""
         if self.is_error:
             status = f"[bold red]{self.status}[/bold red]"
         else:

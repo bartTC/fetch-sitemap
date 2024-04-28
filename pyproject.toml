@@ -15,6 +15,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[tool.poetry.scripts]
+fetch-sitemap = "fetch_sitemap:main"
+
 [tool.poetry.dependencies]
 python = "^3.9"
 aiohttp = ">=3.9.0"
@@ -23,17 +26,14 @@ rich-click = "*"
 defusedxml = "*"
 aiofiles = "*"
 
-[tool.poetry.scripts]
-fetch-sitemap = "fetch_sitemap:main"
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.2"
+pytest-socket = "^0.7.0"
+pytest-httpserver = "^1.0.10"
 
 [project.urls]
 "Homepage" = "https://github.com/bartTC/fetch-sitemap"
 "Bug Tracker" = "https://github.com/bartTC/fetch-sitemap/issues"
-
-[tool.black]
-target-version = ['py312']
-include = '\.pyi?$'
-exclude = "migrations"
 
 [tool.ruff]
 target-version = "py39"
@@ -49,12 +49,22 @@ lint.ignore = [
   "ISC001", # (ruff format) Checks for implicitly concatenated strings on a single line
 ]
 
-[tool.mypy]
-check_untyped_defs = true
-ignore_errors = false
-ignore_missing_imports = true
-strict_optional = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-warn_unused_configs = true
-exclude = ".*/migrations/.*"
+[tool.ruff.lint.extend-per-file-ignores]
+"test*.py" = [
+  "S101",     # Use of `assert` detected
+  "PLR2004",  # Magic value used in comparison, consider replacing <int> with a constant variable
+]
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py"]
+addopts = """
+    --allow-hosts=127.0.0.1,localhost
+"""
+
+[tool.coverage]
+report.exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "except KeyboardInterrupt:",
+]
+run.omit = ["tests/*"]

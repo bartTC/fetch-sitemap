@@ -17,19 +17,56 @@ __author__ = "Martin Mahner"
 click.rich_click.USE_RICH_MARKUP = True
 
 
-def validate_basic_auth(
-    ctx: click.Context,  # noqa: ARG001: Unused argument
-    param: click.ParamType,  # noqa: ARG001: Unused argument
-    value: str | None,
-) -> None:
+class SimpleIntRange(click.IntRange):
+    """
+    Simplify the display of ranges
+    """
+
+    name = "INT"
+
+    def _describe_range(self) -> str:
+        if self.min is None:
+            op = "<" if self.max_open else "<="
+            return f"{op}{self.max}"
+        if self.max is None:
+            op = ">" if self.min_open else ">="
+            return f"{op}{self.min}"
+        return f"{self.min} to {self.max}"
+
+
+class SimpleFloatRange(click.FloatRange):
+    """
+    Simplify the display of ranges
+    """
+
+    name = "FLOAT"
+
+    def _describe_range(self) -> str:
+        if self.min is None:
+            op = "<" if self.max_open else "<="
+            return f"{op}{self.max}"
+        if self.max is None:
+            op = ">" if self.min_open else ">="
+            return f"{op}{self.min}"
+        return f"{self.min} to {self.max}"
+
+
+class BasicAuthParamType(click.ParamType):
     """
     Make sure, the basic auth information is either None or in the format string:string.
     """
-    if value is None or len(value.split(":", 1)) == 2:  # noqa: PLR2004
-        return
 
-    msg = "Format must be '<username>:<password>'"
-    raise click.BadParameter(msg)
+    name = "TEXT"
+
+    def convert(
+        self,
+        value: Any,
+        param: click.ParamType,  # noqa: ARG002: Unused argument
+        ctx: click.Context,  # noqa: ARG002: Unused argument
+    ) -> str:
+        if len(value.split(":", 1)) != 2:  # noqa: PLR2004
+            self.fail(f'{value} must be in the format "username:password"')
+        return value
 
 
 class URLParamType(click.ParamType):
@@ -46,7 +83,7 @@ class URLParamType(click.ParamType):
         return value
 
 
-class IntOrAll(click.ParamType):
+class IntOrAllParamType(click.ParamType):
     """
     A custom Click parameter type that accepts an integer
     or the specific string 'ALL'.
@@ -60,7 +97,7 @@ class IntOrAll(click.ParamType):
         param: click.ParamType,  # noqa: ARG002: Unused argument
         ctx: click.Context,  # noqa: ARG002: Unused argument
     ) -> int | Literal["ALL"]:
-        if isinstance(value, int):
+        if isinstance(value, int) and value > 0:
             return value
         if isinstance(value, str) and value.isdigit():
             return int(value)
@@ -79,16 +116,16 @@ class IntOrAll(click.ParamType):
 @click.option(
     "-a",
     "--basic-auth",
-    type=str,
+    type=BasicAuthParamType(),
     required=False,
     envvar="BASIC_AUTH",
     help="Basic auth information. Format: 'username:password'",
-    callback=validate_basic_auth,
 )
 @click.option(
     "-l",
     "--limit",
-    type=int,
+    type=SimpleIntRange(min=1),
+    required=False,
     default=None,
     envvar="LIMIT",
     help="Maximum number of URLs to fetch from the given sitemap.xml.",
@@ -103,7 +140,7 @@ class IntOrAll(click.ParamType):
 @click.option(
     "-c",
     "--concurrency-limit",
-    type=int,
+    type=SimpleIntRange(min=1),
     default=5,
     envvar="CONCURRENCY_LIMIT",
     help="Max number of concurrent requests.",
@@ -111,7 +148,7 @@ class IntOrAll(click.ParamType):
 @click.option(
     "-t",
     "--request-timeout",
-    type=int,
+    type=SimpleIntRange(min=1),
     default=30,
     envvar="REQUEST_TIMEOUT",
     help="Timeout for fetching a URL in seconds.",
@@ -127,7 +164,7 @@ class IntOrAll(click.ParamType):
 )
 @click.option(
     "--random-length",
-    type=int,
+    type=SimpleIntRange(min=1, max=100),
     default=15,
     envvar="RANDOM_LENGTH",
     help="Length of the --random hash.",
@@ -153,7 +190,7 @@ class IntOrAll(click.ParamType):
 )
 @click.option(
     "--slow-threshold",
-    type=float,
+    type=SimpleFloatRange(min=0.0),
     required=False,
     default=5.0,
     envvar="SLOW_THRESHOLD",
@@ -162,7 +199,7 @@ class IntOrAll(click.ParamType):
 @click.option(
     # param type is int or "ALL"
     "--slow-num",
-    type=IntOrAll(),
+    type=IntOrAllParamType(),
     required=False,
     default=10,
     envvar="SLOW_NUM",
@@ -179,7 +216,7 @@ class IntOrAll(click.ParamType):
 @click.version_option(
     __version__,
     "--version",
-    prog_name="fetch-version",
+    prog_name="fetch-sitemap",
 )
 def main(**kwargs: Any) -> None:
     """
