@@ -45,7 +45,7 @@ def test_indexsitemap(
     # The fetch_sitemap command did not fail
     assert result.exit_code == 0
 
-    # Check, that all paths were called by the fetch_sitemap command
+    # Check that all paths were called by the fetch_sitemap command
     called_paths = [log[0].path for log in httpserver.log]
     assert "/sitemap.xml" in called_paths
     assert "/sitemap_foobar.xml" in called_paths
@@ -53,7 +53,7 @@ def test_indexsitemap(
     assert "/foo" in called_paths
     assert "/bar" in called_paths
 
-    # /foo and /bar were called by the fetch_sitemap command
+    # /foo and /bar were called by the fetch_sitemap command,
     # and they are listed in the output. The output looks like this:
     #
     # 200 http://localhost:63808/foo 0.005s
@@ -80,7 +80,7 @@ def test_indexsitemap_norecursive(
         fetch_sitemap, [httpserver.url_for("/sitemap.xml"), "--no-recursive"]
     )
 
-    # The fetch_sitemap command fail since it wasn't able to collect any links
+    # The fetch_sitemap command has failed since it wasn't able to collect any links
     assert result.exit_code == 1
 
     # Only the sitemap.xml was called by the fetch_sitemap command

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import csv
 import pathlib
+import re
 import tempfile
 from typing import TYPE_CHECKING, Any
 
@@ -264,8 +265,8 @@ def test_slow_threshold(
         (0, False),  # must be > 0
         (1, True),  # ok
         ("1", True),  # strings with ints are fine
-        (10, True),  # floats are fine
-        (10.10, False),  # must not be float
+        (10, True),  # ok
+        (10.10, False),  # must not be a float
         ("ALL", True),  # Uppercase ALL if ok
         ("all", False),  # but not lowercase
         ("", False),  # must not be empty
@@ -274,7 +275,7 @@ def test_slow_threshold(
 )
 def test_slow_num(httpserver: HTTPServer, slow_num: float | str, success: bool) -> None:
     """
-    Tes --slow-num and that /foo and /bar are displayed (twice) if they are treated slow
+    Test --slow-num behavior
     """
 
     result = call_runner(httpserver, "--slow-threshold", 0, "--slow-num", slow_num)
@@ -287,6 +288,21 @@ def test_slow_num(httpserver: HTTPServer, slow_num: float | str, success: bool) 
     # This parameter test was successful.
     assert result.exit_code == 0
     assert len(httpserver.log) == 3  # sitemap_foobar.xml and /foo and /bar
+
+
+@pytest.mark.usefixtures("_setup_foobar_sitemap")
+def test_slow_num_log(httpserver: HTTPServer) -> None:
+    """
+    Test --slow-num and that /foo and /bar are displayed twice, once in the log,
+    once in the extra 'slow log'.
+    """
+
+    result = call_runner(httpserver, "--slow-threshold", 0)
+
+    assert result.exit_code == 0
+    assert len(httpserver.log) == 3  # sitemap_foobar.xml and /foo and /bar
+    assert len(re.findall(r"/foo", result.output)) == 2
+    assert len(re.findall(r"/bar", result.output)) == 2
 
 
 @pytest.mark.usefixtures("_setup_foobar_sitemap")
