@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fetch_sitemap import Options
-
 
 @dataclass
 class Options:

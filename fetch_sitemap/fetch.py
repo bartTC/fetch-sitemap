@@ -27,8 +27,6 @@ from rich.text import Text
 from .datastructures import Options, Report, Response
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from aiohttp import ClientResponse
 
 
@@ -52,8 +50,8 @@ class PageFetcher:
         self.headers = {"User-Agent": options.user_agent}
 
         if options.basic_auth:
-            login, password = options.basic_auth.split(":", 1)
-            self.auth = BasicAuth(login, password=password, encoding="latin1")
+            login, password = options.basic_auth.split(":", maxsplit=1)
+            self.auth = BasicAuth(login=login, password=password, encoding="latin1")
 
         # Initialize the report
         self.report = Report(
@@ -104,7 +102,7 @@ class PageFetcher:
 
     async def get_sitemap_urls(  # noqa: C901 PLR0912 too complex
         self, session: ClientSession, sitemap_url: str
-    ) -> Iterable[str]:
+    ) -> list[str]:
         """
         Get the main sitemap.xml file and extract all location url's of it.
         """
@@ -163,6 +161,7 @@ class PageFetcher:
                 for loc in locs:
                     urls.append(loc.firstChild.nodeValue)
 
+        # Increase counter for successful sitemap.xml parsings.
         self.sitemap_counter += 1
 
         return urls
@@ -199,7 +198,11 @@ class PageFetcher:
                         await self.store_response(client_response, content)
 
             except TimeoutError:
-                response = Response(url=url, status=408, response_time=Decimal(-1))
+                response = Response(
+                    url=url,
+                    status=HTTPStatus.REQUEST_TIMEOUT,
+                    response_time=Decimal(-1),
+                )
 
             self.console.print(
                 response.info(slow_threshold=self.options.slow_threshold)
