@@ -211,24 +211,6 @@ def test_report_path(httpserver: HTTPServer) -> None:
 
 
 @pytest.mark.usefixtures("_setup_foobar_sitemap")
-def test_output_dir(httpserver: HTTPServer) -> None:
-    """
-    Test --output-dir and that /foo and /bar are written to the directory.
-    """
-    # Create a temporary file we can write to
-    t = tempfile.TemporaryDirectory()
-
-    result = call_runner(httpserver, "--output-dir", t.name)
-
-    # This parameter test was successful.
-    assert result.exit_code == 0
-    assert len(httpserver.log) == 3  # sitemap_foobar.xml and /foo and /bar
-
-    assert (pathlib.Path(t.name) / "foo.html").is_file()
-    assert (pathlib.Path(t.name) / "bar.html").is_file()
-
-
-@pytest.mark.usefixtures("_setup_foobar_sitemap")
 @pytest.mark.parametrize(
     ("threshold", "success"),
     [

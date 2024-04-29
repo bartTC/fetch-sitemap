@@ -20,11 +20,12 @@ fetch-sitemap = "fetch_sitemap:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"
+aiofiles = "*"
 aiohttp = ">=3.9.0"
+click = "*"
+defusedxml = "*"
 rich = "*"
 rich-click = "*"
-defusedxml = "*"
-aiofiles = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.2"

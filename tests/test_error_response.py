@@ -72,7 +72,7 @@ def test_error_response(httpserver: HTTPServer, status: HTTPStatus) -> None:
 @pytest.mark.usefixtures("_setup_baz_sitemap")
 def test_timeout_response(httpserver: HTTPServer) -> None:
     """
-    A timeout of an URL will not break the tool.
+    A timeout of a URL will not break the tool.
     """
 
     httpserver.expect_request("/baz").respond_with_handler(lambda request: sleep(2))
@@ -146,5 +146,5 @@ def test_sitemap_must_be_url(sitemap_url: str) -> None:
     """Calling with an invalid sitemap URL doesn't just crash"""
     runner = CliRunner()
     result = runner.invoke(fetch_sitemap, sitemap_url)
-    assert result.exit_code != 0
+    assert result.exit_code >= 1
     assert "Invalid value for 'SITEMAP_URL'" in result.output
