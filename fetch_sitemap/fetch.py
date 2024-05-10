@@ -79,8 +79,9 @@ class PageFetcher:
                 self.error("No URLs to fetch found.", exit_now=True)
             else:
                 self.console.print(
-                    f"\n💪 Found {len(sitemap_urls)} documents across "
-                    f"{self.sitemap_counter} Sitemap files.\n"
+                    f"\n:raised_hands: Found {len(sitemap_urls)} documents across "
+                    f"{self.sitemap_counter} Sitemap files.\n",
+                    emoji=True
                 )
 
             # Only fetch a subset of urls if options.report.limit is set.
