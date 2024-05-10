@@ -81,7 +81,7 @@ class PageFetcher:
                 self.console.print(
                     f"\n:raised_hands: Found {len(sitemap_urls)} documents across "
                     f"{self.sitemap_counter} Sitemap files.\n",
-                    emoji=True
+                    emoji=True,
                 )
 
             # Only fetch a subset of urls if options.report.limit is set.
