@@ -101,7 +101,7 @@ class PageFetcher:
         self.write_report()
         self.show_report()
 
-    async def get_sitemap_urls(  # noqa: C901 PLR0912 too complex
+    async def get_sitemap_urls(  # noqa: C901 too complex
         self, session: ClientSession, sitemap_url: str
     ) -> list[str]:
         """
@@ -197,6 +197,13 @@ class PageFetcher:
                     if self.options.output_dir:
                         content = await client_response.text()
                         await self.store_response(client_response, content)
+
+            except ClientConnectorError:
+                response = Response(
+                    url=url,
+                    status=HTTPStatus.BAD_GATEWAY,
+                    response_time=Decimal(-1),
+                )
 
             except TimeoutError:
                 response = Response(

@@ -52,8 +52,15 @@ class Response:
         else:
             status = f"[bold green]{self.status}[/bold green]"
 
-        if self.status == HTTPStatus.REQUEST_TIMEOUT:
+        if self.status in (
+            HTTPStatus.REQUEST_TIMEOUT,
+            HTTPStatus.GATEWAY_TIMEOUT,
+        ):
             response_time = "[bold magenta]Timeout[/bold magenta]"
+        elif self.status >= HTTPStatus.BAD_REQUEST:
+            response_time = (
+                f"[bold magenta]{HTTPStatus(self.status).phrase}[/bold magenta]"
+            )
         elif self.response_time > slow_threshold:
             response_time = f"[bold red]{self.response_time:.3f}s[/bold red]"
         else:
